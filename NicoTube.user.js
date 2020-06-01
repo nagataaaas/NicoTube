@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            NicoTube
 // @namespace       NicoTube
-// @version         0.0.4
+// @version         0.0.5
 // @description     Youtubeのライブチャットをniconicoの様に描画します
 // @author          @nagataaaas
 // @name:en         NicoTube
@@ -492,7 +492,7 @@
                         case 0:
                             return seps.width;
                         case 1:
-                            return seps.width * 1.2
+                            return seps.width
                     }
                 }).reduce((p, x) => p + x, 0.0);
                 let beforeFillStyle = context.fillStyle;
@@ -512,7 +512,6 @@
                         currentX += seps.width;
                         break
                     case 1:
-                        currentX += seps.width * 0.1
                         newImage = new Image();
                         imageSrc = seps.src;
                         toBeLoaded += 1;
@@ -520,13 +519,13 @@
                             loadedCount += 1;
                             if (loadedCount == toBeLoaded) {
                                 newImages.forEach((image) => {
-                                    context.drawImage(image, Math.floor(image.cX), comment.height * 0.2, Math.floor(commentCanvas.height * config.fontSize), Math.floor(commentCanvas.height * config.fontSize));
+                                    context.drawImage(image, Math.floor(image.cX), comment.height * 0.2, seps.width, seps.width);
                                 })
                             }
                         }
                         newImage.src = imageSrc;
-                        newImage.cX = currentX;
-                        currentX += seps.width * 1.1;
+                        newImage.cX = currentX + seps.width * 0.2 / 1.4;
+                        currentX += seps.width;
                         newImages.push(newImage)
                         break
                 }
@@ -671,9 +670,9 @@
                         state.width = currentWidth;
                         break;
                     case 1: // emoji
-                        width += fullwidth;
+                        width += fullwidth * 1.4;
                         height = Math.floor(commentCanvas.height * config.fontSize);
-                        state.width = fullwidth;
+                        state.width = fullwidth * 1.4;
                         break
                 }
                 ;
