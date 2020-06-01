@@ -18,8 +18,15 @@
 // comment icon by Freepik(http://www.freepik.com/) from www.flaticon.com
 // block icon by Those Icons(https://www.flaticon.com/free-icon/) from www.flaticon.com
 
-(function(){
+(function () {
     'use strict';
+    let comments;
+    let globalMutations = {
+        comment: null,
+        contextMenu: null,
+        hover: null
+    }
+
     const getVars = () => {
         let userConfig = {
             commentSpeed: GM_getValue('commentSpeed', 5), // from appear to disappear
@@ -46,7 +53,7 @@
     let commentToggleButton = `<button class="ytp-button" aria-label="NicoTibe" title="NicoTibe" show="true" id="nicotubeswitch"><svg height="100%" viewBox="-128 -157 768 768" width="100%">${availableIcon}${unavailableIcon}</svg></button>`
 
     Object.defineProperty(String.prototype, 'hashCode', {
-        value: function() {
+        value: function () {
             var hash = 0, i, chr;
             for (i = 0; i < this.length; i++) {
                 chr = this.charCodeAt(i);
@@ -59,14 +66,19 @@
 
     const createElementFromHTML = (htmlString) => {
         let div = document.createElement('div');
+        div.id = 'easycreate'
         document.body.append(div)
         div.innerHTML = htmlString.trim();
         return div.firstChild;
     }
 
 
-    const getChatField = () => {return document.getElementById('chatframe') && document.getElementById('chatframe').contentDocument.querySelector('#items.style-scope.yt-live-chat-item-list-renderer')}
-    const getPlayer = () => {return document.getElementById('movie_player')}
+    const getChatField = () => {
+        return document.getElementById('chatframe') && document.getElementById('chatframe').contentDocument.querySelector('#items.style-scope.yt-live-chat-item-list-renderer')
+    }
+    const getPlayer = () => {
+        return document.getElementById('movie_player')
+    }
 
     let waitInterval;
     const waitReady = () => {
@@ -74,11 +86,11 @@
         clearInterval(waitInterval);
         waitInterval = setInterval(() => {
             findCount++;
-            if(findCount > 180){
+            if (findCount > 180) {
                 clearInterval(waitInterval);
                 findCount = 0;
             }
-            if(getPlayer() && getChatField()){
+            if (getPlayer() && getChatField()) {
                 clearInterval(waitInterval);
                 nicoChat();
 
@@ -86,6 +98,30 @@
             }
         }, 1000);
     }
+
+    let hrefHist = location.href;
+    const URLChangeObserver = new MutationObserver(function (mutations) {
+        if (hrefHist !== location.href) {
+            clearInterval(waitInterval)
+            console.log(globalMutations)
+            globalMutations.comment && globalMutations.comment.disconnect()
+            globalMutations.hover && globalMutations.hover.disconnect()
+            globalMutations.contextMenu && globalMutations.contextMenu.disconnect()
+            $('#nicotubeswitch').get(0) && $('#nicotubeswitch').get(0).remove();
+            $('#nicoChatCanvas').get(0) && $('#nicoChatCanvas').get(0).remove();
+            $('#easycreate').get(0) && $('#easycreate').get(0).remove();
+            comments && comments.forEach((commentLine) => {
+                commentLine.forEach((comment) => {
+                    commentLine[0].canvas.remove();
+                    commentLine.shift();
+                });
+            });
+            waitReady();
+            hrefHist = location.href
+        }
+    })
+    URLChangeObserver.disconnect()
+    URLChangeObserver.observe(document, {childList: true, subtree: true})
 
     $(document).ready(() => {
         waitReady();
@@ -118,27 +154,34 @@
         nicoTubeSwitch.get(0).onclick = () => {
             let currentSwitch = nicoTubeSwitch.attr('show') == 'true';
             nicoTubeSwitch.attr('show', !currentSwitch)
-            $('#nicotubepath1').css('visibility', (currentSwitch? 'hidden': 'visible'));
-            $('#nicotubepath2').css('visibility', (!currentSwitch? 'hidden': 'visible'));
-            $('#nicotubepath3').css('visibility', (!currentSwitch? 'hidden': 'visible'));
-            $('#nicotubepath4').css('visibility', (!currentSwitch? 'hidden': 'visible'));
+            $('#nicotubepath1').css('visibility', (currentSwitch ? 'hidden' : 'visible'));
+            $('#nicotubepath2').css('visibility', (!currentSwitch ? 'hidden' : 'visible'));
+            $('#nicotubepath3').css('visibility', (!currentSwitch ? 'hidden' : 'visible'));
+            $('#nicotubepath4').css('visibility', (!currentSwitch ? 'hidden' : 'visible'));
             nicoTubeOn = !currentSwitch;
-            $(commentCanvas).css('visibility', (nicoTubeOn? 'visible': 'hidden'));
+            $(commentCanvas).css('visibility', (nicoTubeOn ? 'visible' : 'hidden'));
         }
 
         // switch mouseover mouseout
         let isMouseOn = false;
         let hoverMutation;
 
-        const hoverObserver = new MutationObserver((mutations) => {
+        const hoverObserver = globalMutations.hover || new MutationObserver((mutations) => {
             $('#movie_player > div.ytp-tooltip.ytp-bottom').css('display', '')
             $('#movie_player > div.ytp-tooltip.ytp-bottom').css('opacity', '1.0')
         });
+        globalMutations.hover = hoverObserver;
 
-        let hoverObserveConfig = { attributes: true, childList: false, characterData: false };
+        let hoverObserveConfig = {
+            attributes: true,
+            childList: false,
+            characterData: false,
+            attributeFilter: ['display']
+        };
 
         nicoTubeSwitch.get(0).onmouseover = () => {
             isMouseOn = true;
+            hoverObserver.disconnect();
             hoverObserver.observe($('#movie_player > div.ytp-tooltip.ytp-bottom').get(0), hoverObserveConfig);
             $('#movie_player > div.ytp-tooltip.ytp-bottom').css('display', '')
             $('#movie_player > div.ytp-tooltip.ytp-bottom').css('left', nicoTubeSwitch.offset().left + 'px')
@@ -209,11 +252,17 @@
         }
         contextMenuCanvasInit(contextMenuCanvas);
 
-        const contextMenuPopObserver = new MutationObserver((mutations) => {
+        const contextMenuPopObserver = globalMutations.contextMenu || new MutationObserver((mutations) => {
             mutations[0].target.style.display = 'none';
         });
+        globalMutations.contextMenu = contextMenuPopObserver;
 
-        let contextMenuPopObserverSetting = { attributes: true, childList: false, characterData: false };
+        let contextMenuPopObserverSetting = {
+            attributes: true,
+            childList: false,
+            characterData: false,
+            attributeFilter: ['display']
+        };
 
         let targetComment;
         let commentIndex;
@@ -223,25 +272,26 @@
             let y = e.clientY + window.pageYOffset;
             let canvasX = $(commentCanvas).offset().left;
             let canvasY = $(commentCanvas).offset().top;
-            if (canvasX <= x && x <= canvasX + commentCanvas.width && canvasY <= y && y <= canvasY + commentCanvas.height){
+            if (canvasX <= x && x <= canvasX + commentCanvas.width && canvasY <= y && y <= canvasY + commentCanvas.height) {
                 y = y - canvasY;
                 let lane = Math.floor(y / (commentCanvas.height * config.fontSize * (config.commentMargin + 1)))
                 let matchComment;
                 if (!comments || !comments[lane]) return;
-                let index = comments[lane].length-1;
+                let index = comments[lane].length - 1;
                 comments[lane].reverse().some((comment) => {
                     let comX = commentCanvas.width - (commentCanvas.width + comment.width) * ((currentTick() - comment.timestamp) / (config.commentSpeed)) + commentCanvas.getBoundingClientRect().left;
-                    if (comX <= x && x <= comX + comment.width){
+                    if (comX <= x && x <= comX + comment.width) {
                         matchComment = comment;
                         commentIndex = [lane, index]
                         return true;
                     }
                     index--;
                 })
-                if (matchComment){
+                if (matchComment) {
                     targetComment = matchComment;
                     contextMenu = $('body > div.ytp-popup.ytp-contextmenu').get(0) || $('#movie_player > div.ytp-popup.ytp-contextmenu.ytp-big-mode').get(0);
                     contextMenu.style.display = 'none';
+                    contextMenuPopObserver.disconnect();
                     contextMenuPopObserver.observe(contextMenu, contextMenuPopObserverSetting);
 
                     e.preventDefault();
@@ -280,7 +330,9 @@
 
         // comment to text to copy
         const comentToText = (comment) => {
-            return comment.comment.parsed.map((com) => {return com.text}).join('');
+            return comment.comment.parsed.map((com) => {
+                return com.text
+            }).join('');
         }
 
 
@@ -305,7 +357,7 @@
             cvs.width = width * 1.2;
             cvs.height = height * 2;
             let context = cvs.getContext('2d');
-            context.font = `${config.isBold? 'bold' : ''} ${commentCanvas.height * config.fontSize}pt '${config.fontFamily}'`;
+            context.font = `${config.isBold ? 'bold' : ''} ${commentCanvas.height * config.fontSize}pt '${config.fontFamily}'`;
             context.shadowColor = config.fontColor;
             context.textBaseline = 'top';
             context.fillStyle = config.fontColor;
@@ -318,7 +370,7 @@
         const mainCanvasResize = () => {
             commentCanvas.width = player.getBoundingClientRect().width;
             commentCanvas.height = player.getBoundingClientRect().height;
-            ctx.font = `${config.isBold? 'bold' : ''} ${commentCanvas.height * config.fontSize}pt '${config.fontFamily}'`;
+            ctx.font = `${config.isBold ? 'bold' : ''} ${commentCanvas.height * config.fontSize}pt '${config.fontFamily}'`;
             ctx.shadowColor = config.fontColor;
             ctx.globalAlpha = config.canvasAlpha;
             ctx.textBaseline = 'top';
@@ -334,6 +386,7 @@
             clearTimeout(whenResized);
             whenResized = setTimeout(resizeHandler, 300);
         });
+        resizeObserver.disconnect();
         resizeObserver.observe(video);
 
         const resizeHandler = () => {
@@ -350,8 +403,9 @@
             commentObserver.disconnect()
             chatFieldWait = setInterval(() => {
                 chatField = getChatField();
-                if (chatField){
+                if (chatField) {
                     clearInterval(chatFieldWait);
+                    commentObserver.disconnect();
                     commentObserver.observe(chatField, commentObserveConfig);
                 }
             }, 100)
@@ -359,28 +413,30 @@
 
         // comment observe
         let messageFieldSelector = '#message';
-        const commentInit = () => {return [...Array(Math.floor(1 / config.fontSize / (1 + config.commentMargin )))].map(x=>[])}
-        let comments = commentInit();
-        const commentObserver = new MutationObserver((mutations) => {
+        const commentInit = () => {
+            return [...Array(Math.floor(1 / config.fontSize / (1 + config.commentMargin)))].map(x => [])
+        }
+        comments = commentInit();
+        const commentObserver = globalMutations.comment || new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
-                if (mutation.addedNodes.length > 0){
+                if (mutation.addedNodes.length > 0) {
                     Array.from(mutation.addedNodes).forEach((node) => {
-                        if ($(node).find('#card').hasClass('yt-live-chat-viewer-engagement-message-renderer')){
+                        if ($(node).find('#card').hasClass('yt-live-chat-viewer-engagement-message-renderer')) {
                             return
                         }
                         let minLine, minMove = 10e30;
                         let parsedComment = parseComment(node);
-                        if (parsedComment.postTIme < currentTick() - config.commentSpeed){
+                        if (parsedComment.postTIme < currentTick() - config.commentSpeed) {
                             return;
                         }
                         if (config.blockedUsers.some((blockedUser) => { // blocked user
                             return blockedUser[0] == parsedComment.from
-                        })){
+                        })) {
                             return
                         }
                         if (config.blockedComments.some((blockedComment) => { // blocked comment
                             return blockedComment[0] == parsedComment.hash
-                        })){
+                        })) {
                             return
                         }
                         let commentSize = calcCommentSize(parsedComment);
@@ -388,22 +444,27 @@
                         let fullMoveWidth = $(commentCanvas).width() + commentWidth;
                         let commentCanvasRatio = $(commentCanvas).width() / fullMoveWidth;
                         let startGetOut = currentTick() + commentCanvasRatio * config.commentSpeed;
-                        let _ = comments.some((commentLine)=>{
+                        let _ = comments.some((commentLine) => {
                             let lastCommentShowComplete = commentLine.length == 0 || config.commentSpeed / (commentCanvas.width + commentLine[commentLine.length - 1].width) * commentLine[commentLine.length - 1].width + commentLine[commentLine.length - 1].timestamp
-                            if (commentLine.length == 0 || (commentLine[commentLine.length - 1].expired < startGetOut && lastCommentShowComplete < currentTick())){
+                            if (commentLine.length == 0 || (commentLine[commentLine.length - 1].expired < startGetOut && lastCommentShowComplete < currentTick())) {
                                 commentLine.push(commentObj(parsedComment, currentTick(), currentTick() + config.commentSpeed, commentSize));
                                 return true;
                             }
-                            if (minMove > commentLine[commentLine.length - 1].expired){
+                            if (minMove > commentLine[commentLine.length - 1].expired) {
                                 minMove = commentLine[commentLine.length - 1].expired;
                                 minLine = commentLine;
                             }
-                        }) || (() => {minLine.push(commentObj(parsedComment, currentTick(), currentTick() + config.commentSpeed, commentSize)); return true})();
+                        }) || (() => {
+                            minLine.push(commentObj(parsedComment, currentTick(), currentTick() + config.commentSpeed, commentSize));
+                            return true
+                        })();
                     })
                 }
             });
         });
-        let commentObserveConfig = { attributes: false, childList: true, characterData: false };
+        globalMutations.comment = commentObserver;
+        let commentObserveConfig = {attributes: false, childList: true, characterData: false};
+        commentObserver.disconnect();
         commentObserver.observe(chatField, commentObserveConfig);
 
 
@@ -414,20 +475,21 @@
             let loadedCount = 0;
             let toBeLoaded = 0;
             let newImages = [];
-            comment.parsed.forEach((seps)=>{
-                switch (seps.type){
+            comment.parsed.forEach((seps) => {
+                switch (seps.type) {
                     case 0:
                         context.strokeText(seps.text, Math.floor(currentX), comment.height * 0.1);
                         context.fillText(seps.text, Math.floor(currentX), comment.height * 0.1);
                         currentX += seps.width;
                         break
                     case 1:
+                        currentX += seps.width * 0.1
                         newImage = new Image();
                         imageSrc = seps.src;
                         toBeLoaded += 1;
                         newImage.onload = () => {
                             loadedCount += 1;
-                            if (loadedCount == toBeLoaded){
+                            if (loadedCount == toBeLoaded) {
                                 newImages.forEach((image) => {
                                     context.drawImage(image, Math.floor(image.cX), comment.height * 0.2, Math.floor(commentCanvas.height * config.fontSize), Math.floor(commentCanvas.height * config.fontSize));
                                 })
@@ -435,12 +497,12 @@
                         }
                         newImage.src = imageSrc;
                         newImage.cX = currentX;
-                        currentX += seps.width;
+                        currentX += seps.width * 1.1;
                         newImages.push(newImage)
                         break
                 }
             })
-            if (comment.from == 'self'){
+            if (comment.from == 'self') {
                 context.strokeStyle = config.userCommentStrokeColor;
                 context.strokeRect(0, 0, currentX, comment.height * 1.1);
             }
@@ -466,7 +528,7 @@
                 obj.height = size[1] * 2;
                 obj.canvas.width = obj.width;
                 obj.canvas.height = obj.height;
-                obj.ctx.font = `${config.isBold? 'bold' : ''} ${commentCanvas.height * config.fontSize}pt '${config.fontFamily}'`;
+                obj.ctx.font = `${config.isBold ? 'bold' : ''} ${commentCanvas.height * config.fontSize}pt '${config.fontFamily}'`;
                 obj.ctx.textBaseline = 'top';
                 obj.ctx.fillStyle = config.fontColor;
                 obj.ctx.lineWidth = commentCanvas.height * config.fontSize * config.borderWidth;
@@ -482,7 +544,7 @@
         const stateObj = (type, data) => {
             let obj = {type: type};
             let elem;
-            switch (type){
+            switch (type) {
                 case 0: // str
                     obj.text = data;
                     break;
@@ -505,26 +567,28 @@
             let obj = new Object();
             obj.parsed = new Array();
             obj.id = comment.id;
-            if ($(comment.querySelector('#img')).attr('src')){
+            if ($(comment.querySelector('#img')).attr('src')) {
                 obj.from = $(comment.querySelector('#img')).attr('src').split('/')[userIdIndexOfImageSrc];
             } else {
                 obj.from = 'self';
             }
             let timestamp = $(comment.querySelector('#timestamp')).text().split(':')
-            obj.postTIme = (timestamp.length == 2)? timestamp[0] * 60 + timestamp[1] * 1 : timestamp[0] * 3600 + timestamp[1] * 60 + timestamp[2] * 1;
+            obj.postTIme = (timestamp.length == 2) ? timestamp[0] * 60 + timestamp[1] * 1 : timestamp[0] * 3600 + timestamp[1] * 60 + timestamp[2] * 1;
             comment = comment.querySelector(messageFieldSelector).innerHTML;
 
             let imagetagSeparator = /(<img.+?>)/g;
             let separated = comment.split(imagetagSeparator);
             separated.filter(n => n);
             separated.forEach((sep) => {
-                if (imagetagSeparator.test(sep)){
+                if (imagetagSeparator.test(sep)) {
                     obj.parsed.push(stateObj(1, sep))
                 } else {
                     obj.parsed.push(stateObj(0, sep))
                 }
             });
-            obj.hash = obj.parsed.map((com) => {return com.text}).join('').hashCode();
+            obj.hash = obj.parsed.map((com) => {
+                return com.text
+            }).join('').hashCode();
             return obj
         };
 
@@ -536,7 +600,7 @@
             let metrics;
             let texts = [];
             comment.parsed.forEach((state) => {
-                switch (state.type){
+                switch (state.type) {
                     case 0: // str
                         metrics = ctx.measureText(state.text);
                         currentWidth = metrics.width;
@@ -549,7 +613,8 @@
                         height = Math.floor(commentCanvas.height * config.fontSize);
                         state.width = fullwidth;
                         break
-                };
+                }
+                ;
             });
             metrics = ctx.measureText(texts.join(''));
             comment.height = Math.max(metrics.actualBoundingBoxDescent - metrics.actualBoundingBoxAscent, height);
@@ -558,10 +623,10 @@
 
 
         // comment expire
-        let expireInterval = setInterval(()=>{
-            comments.forEach((commentLine)=>{
-                commentLine.forEach((comment) =>{
-                    if (comment.expired < currentTick() || comment.timestamp > currentTick()){
+        let expireInterval = setInterval(() => {
+            comments.forEach((commentLine) => {
+                commentLine.forEach((comment) => {
+                    if (comment.expired < currentTick() || comment.timestamp > currentTick()) {
                         commentLine[0].canvas.remove();
                         commentLine.shift();
                     }
@@ -570,9 +635,15 @@
         }, 100);
 
         // stop-play observe
-        const checkVideoIsPaused = () => {return !video.paused}
-        video.onpause = () => {currentPlayState = 0;}
-        video.onplay = () => {currentPlayState = 1;}
+        const checkVideoIsPaused = () => {
+            return !video.paused
+        }
+        video.onpause = () => {
+            currentPlayState = 0;
+        }
+        video.onplay = () => {
+            currentPlayState = 1;
+        }
 
         // seek handler
         video.onseeking = () => {
@@ -598,7 +669,7 @@
             for (const [index, commentLine] of comments.entries()) {
                 commentLine.forEach((comment) => {
                     let commentWidth = comment.width;
-                    let x = commentCanvas.width - (commentCanvas.width+commentWidth) * ((currentTick() - comment.timestamp) / (config.commentSpeed));
+                    let x = commentCanvas.width - (commentCanvas.width + commentWidth) * ((currentTick() - comment.timestamp) / (config.commentSpeed));
                     let y = index * commentCanvas.height * config.fontSize * (config.commentMargin + 1);
                     drawComment(comment, x, y);
                 })
