@@ -219,8 +219,8 @@
         let commentIndex;
         // comment right click
         $(document).on('contextmenu', (e) => {
-            let x = e.clientX;
-            let y = e.clientY;
+            let x = e.clientX + window.pageXOffset;
+            let y = e.clientY + window.pageYOffset;
             let canvasX = $(commentCanvas).offset().left;
             let canvasY = $(commentCanvas).offset().top;
             if (canvasX <= x && x <= canvasX + commentCanvas.width && canvasY <= y && y <= canvasY + commentCanvas.height){
