@@ -8,7 +8,6 @@
 // @description:en  Render Youtube live chat on the video just like niconico
 // @match           https://www.youtube.com/watch*
 // @require         https://code.jquery.com/jquery-3.3.1.min.js
-// @grant           none
 // @grant           GM_setValue
 // @grant           GM_getValue
 // @noframes
@@ -19,6 +18,21 @@
 // block icon by Those Icons(https://www.flaticon.com/free-icon/) from www.flaticon.com
 
 (function(){
+    'use strict';
+    const getVars = () => {
+        let userConfig = {
+            commentSpeed: GM_getValue('commentSpeed', 5), // from appear to disappear
+            fontFamily: 'Arial', // font of chat
+            isBold: true, // is comment font bold
+            fontSize: 0.06, // Relative size to height of video
+            commentMargin: 0.4, // Relative size to fontSize
+            fontColor: '#FFFFFF', // color of comment (default to white
+            canvasAlpha: 0.5, // alpha of comment
+            borderWidth: 0.1, // Relative size to fontSize
+            borderColor: '#000000', // color of border (default to black
+        };
+        return userConfig;
+    };
     let availableIcon = `<path d="m0 0v342h120.148438v112.054688l181.253906-112.054688h210.597656v-342zm360.996094 214.335938h-209.992188v-30h209.988282v30zm0-65.175782h-209.992188v-30h209.988282v30zm0 0" fill="white" id="nicotubepath1"/>`
     let unavailableIcon = `<path d="m0 0v342h120.148438v112.054688l181.253906-112.054688h210.597656v-342zm482 312h-189.121094l-142.730468 88.238281v-88.238281h-120.148438v-282h452zm0 0" fill="white" id="nicotubepath2" style="visibility:hidden;"/><path d="m151.003906 121.160156h209.988282v30h-209.988282zm0 0" fill="white" id="nicotubepath3" style="visibility:hidden;"/><path d="m151.003906 183h209.988282v30h-209.988282zm0 0" fill="white" id="nicotubepath4" style="visibility:hidden;"/>`
     let commentToggleButton = `<button class="ytp-button" aria-label="NicoTibe" title="NicoTibe" show="true" id="nicotubeswitch"><svg height="100%" viewBox="-128 -157 768 768" width="100%">${availableIcon}${unavailableIcon}</svg></button>`
@@ -42,22 +56,8 @@
         return div.firstChild;
     }
 
-    const getVars = () => {
-        let userConfig = {
-            commentSpeed: 5, // from appear to disappear
-            fontFamily: 'Arial', // font of chat
-            isBold: true, // is comment font bold
-            fontSize: 0.06, // Relative size to height of video
-            commentMargin: 0.4, // Relative size to fontSize
-            fontColor: '#FFFFFF', // color of comment (default to white
-            canvasAlpha: 0.5, // alpha of comment
-            borderWidth: 0.1, // Relative size to fontSize
-            borderColor: '#000000', // color of border (default to black
-        };
-        return userConfig;
-    };
 
-    const getChatField = () => {return window.frames.chatframe && window.frames.chatframe.contentDocument.querySelector('#items.style-scope.yt-live-chat-item-list-renderer')}
+    const getChatField = () => {return document.getElementById('chatframe') && document.getElementById('chatframe').contentDocument.querySelector('#items.style-scope.yt-live-chat-item-list-renderer')}
     const getPlayer = () => {return document.getElementById('movie_player')}
 
     let waitInterval;
@@ -70,6 +70,7 @@
                 clearInterval(waitInterval);
                 findCount = 0;
             }
+            console.log(getPlayer() , getChatField())
             if(getPlayer() && getChatField()){
                 clearInterval(waitInterval);
                 nicoChat();
@@ -84,7 +85,6 @@
     })
 
     function nicoChat() {
-        'use strict';
         // setting
         let config = getVars();
         let player = getPlayer();
