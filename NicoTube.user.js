@@ -10,6 +10,7 @@
 // @require         https://code.jquery.com/jquery-3.3.1.min.js
 // @grant           GM_setValue
 // @grant           GM_getValue
+// @grant           GM_setClipboard
 // @noframes
 /* globals jQuery, $ */
 // ==/UserScript==
@@ -70,7 +71,6 @@
                 clearInterval(waitInterval);
                 findCount = 0;
             }
-            console.log(getPlayer() , getChatField())
             if(getPlayer() && getChatField()){
                 clearInterval(waitInterval);
                 nicoChat();
@@ -184,16 +184,14 @@
 
 </div>
 </div>`)
-        console.log(nicoTubeContextMenu)
-        console.log('here!!!!!!!!!!!!!!!!!!!!')
         let contextMenuCanvas = $('#contextMenuCanvas')
+        let copyTextArea = $('#nicoTubeCopyArea')
 
         const contextMenuCanvasInit = (menuCanvas_) => {
             let menuCanvas = menuCanvas_.get(0);
             let menuCtx = menuCanvas.getContext('2d');
             menuCanvas.width = 300;
             menuCanvas.height = 50;
-            console.log(menuCanvas.width)
         }
 
         const contextMenuCanvasDraw = (menuCanvas_, fromCanvas) => {
@@ -201,7 +199,6 @@
             let menuCtx = menuCanvas.getContext('2d');
             let ratio = 30 / (commentCanvas.height * config.fontSize * 2)
             menuCanvas.width = menuCanvas.width;
-            console.log(ratio)
             menuCtx.drawImage(fromCanvas, 20, 17, fromCanvas.width * ratio, fromCanvas.height * ratio)
         }
         contextMenuCanvasInit(contextMenuCanvas);
@@ -212,9 +209,10 @@
 
         let contextMenuPopObserverSetting = { attributes: true, childList: false, characterData: false };
 
+        let targetComment;
+        let commentIndex;
         // comment right click
         $(document).on('contextmenu', (e) => {
-            e.preventDefault()
             let x = e.clientX;
             let y = e.clientY;
             let canvasX = $(commentCanvas).offset().left;
@@ -224,29 +222,56 @@
                 let lane = Math.floor(y / (commentCanvas.height * config.fontSize * (config.commentMargin + 1)))
                 let matchComment;
                 if (!comments || !comments[lane]) return;
+                let index = comments[lane].length-1;
                 comments[lane].reverse().some((comment) => {
                     let comX = commentCanvas.width - (commentCanvas.width + comment.width) * ((currentTick() - comment.timestamp) / (config.commentSpeed)) + commentCanvas.getBoundingClientRect().left;
                     if (comX <= x && x <= comX + comment.width){
                         matchComment = comment;
+                        commentIndex = [lane, index]
                         return true;
                     }
+                    index--;
                 })
                 if (matchComment){
+                    targetComment = matchComment;
                     contextMenu = $('body > div.ytp-popup.ytp-contextmenu').get(0) || $('#movie_player > div.ytp-popup.ytp-contextmenu.ytp-big-mode').get(0);
-                    console.log(contextMenu)
                     contextMenu.style.display = 'none';
                     contextMenuPopObserver.observe(contextMenu, contextMenuPopObserverSetting);
+
                     e.preventDefault();
+
                     $(nicoTubeContextMenu).css('top', y);
                     $(nicoTubeContextMenu).css('left', x);
                     $(nicoTubeContextMenu).css('display', '');
-                    console.log(matchComment)
+
                     contextMenuCanvasDraw(contextMenuCanvas, matchComment.canvas);
+
                     $(commentCanvas).css('pointer-events', '');
-                    return false;
                 }
             }
         });
+
+        // click on nicotube context menu
+
+        $('#userblock').on('click', (e) => {
+            $(nicoTubeContextMenu).css('display', 'none');
+            console.log(targetComment, commentIndex);
+        });
+
+        $('#commentblock').on('click', (e) => {
+            $(nicoTubeContextMenu).css('display', 'none');
+        });
+
+        $('#commentcopy').on('click', (e) => {
+            $(nicoTubeContextMenu).css('display', 'none');
+            GM_setClipboard(comentToText(targetComment));
+        });
+
+        // comment to text to copy
+        const comentToText = (comment) => {
+            return comment.comment.parsed.map((com) => {return com.text}).join('');
+        }
+
 
         // click canvas after right click comment
         commentCanvas.onclick = () => {
@@ -422,7 +447,6 @@
                 obj.ctx.fillStyle = config.fontColor;
                 obj.ctx.lineWidth = commentCanvas.height * config.fontSize * config.borderWidth;
                 obj.ctx.strokeStyle = config.borderColor;
-                console.log(obj.ctx.font)
                 drawCommentOffScreen(obj.canvas, obj.ctx, obj.comment);
             }
 
@@ -493,6 +517,7 @@
                         break;
                     case 1: // emoji
                         width += fullwidth;
+                        height = Math.max(height, fullwidth)
                         state.width = fullwidth;
                         break
                 };
