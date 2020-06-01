@@ -24,6 +24,7 @@
         let userConfig = {
             commentSpeed: GM_getValue('commentSpeed', 5), // from appear to disappear
             fontFamily: 'Arial', // font of chat
+            userCommentStrokeColor: 'yellow', // color of box of user comment
             isBold: true, // is comment font bold
             fontSize: 0.06, // Relative size to height of video
             commentMargin: 0.4, // Relative size to fontSize
@@ -31,9 +32,15 @@
             canvasAlpha: 0.5, // alpha of comment
             borderWidth: 0.1, // Relative size to fontSize
             borderColor: '#000000', // color of border (default to black
+            blockedUsers: [], // list of list of blocked userid [[userID, comment], [userID, comment], [userID, comment]...]
+            blockedComments: [] // list of list of hash of blocked comments [[hash, acualcomment], [hash, acualcomment], [hash, acualcomment]...]
         };
         return userConfig;
     };
+
+    const saveConfig = () => {
+// --------------------------------------------------------------------------------------------------------------------------------------
+    }
     let availableIcon = `<path d="m0 0v342h120.148438v112.054688l181.253906-112.054688h210.597656v-342zm360.996094 214.335938h-209.992188v-30h209.988282v30zm0-65.175782h-209.992188v-30h209.988282v30zm0 0" fill="white" id="nicotubepath1"/>`
     let unavailableIcon = `<path d="m0 0v342h120.148438v112.054688l181.253906-112.054688h210.597656v-342zm482 312h-189.121094l-142.730468 88.238281v-88.238281h-120.148438v-282h452zm0 0" fill="white" id="nicotubepath2" style="visibility:hidden;"/><path d="m151.003906 121.160156h209.988282v30h-209.988282zm0 0" fill="white" id="nicotubepath3" style="visibility:hidden;"/><path d="m151.003906 183h209.988282v30h-209.988282zm0 0" fill="white" id="nicotubepath4" style="visibility:hidden;"/>`
     let commentToggleButton = `<button class="ytp-button" aria-label="NicoTibe" title="NicoTibe" show="true" id="nicotubeswitch"><svg height="100%" viewBox="-128 -157 768 768" width="100%">${availableIcon}${unavailableIcon}</svg></button>`
@@ -185,7 +192,6 @@
 </div>
 </div>`)
         let contextMenuCanvas = $('#contextMenuCanvas')
-        let copyTextArea = $('#nicoTubeCopyArea')
 
         const contextMenuCanvasInit = (menuCanvas_) => {
             let menuCanvas = menuCanvas_.get(0);
@@ -255,11 +261,16 @@
 
         $('#userblock').on('click', (e) => {
             $(nicoTubeContextMenu).css('display', 'none');
-            console.log(targetComment, commentIndex);
+            config.blockedUsers.push([targetComment.comment.from, comentToText(targetComment)])
+            comments[commentIndex[0]].splice(commentIndex[1], 1)
+            resized = true;
         });
 
         $('#commentblock').on('click', (e) => {
+            config.blockedComments.push([targetComment.comment.hash, comentToText(targetComment)])
             $(nicoTubeContextMenu).css('display', 'none');
+            comments[commentIndex[0]].splice(commentIndex[1], 1)
+            resized = true;
         });
 
         $('#commentcopy').on('click', (e) => {
@@ -291,8 +302,8 @@
 
         const createCanvas = (width, height) => {
             let cvs = document.createElement('canvas');
-            cvs.width = width;
-            cvs.height = height*2;
+            cvs.width = width * 1.2;
+            cvs.height = height * 2;
             let context = cvs.getContext('2d');
             context.font = `${config.isBold? 'bold' : ''} ${commentCanvas.height * config.fontSize}pt '${config.fontFamily}'`;
             context.shadowColor = config.fontColor;
@@ -355,13 +366,22 @@
                 if (mutation.addedNodes.length > 0){
                     Array.from(mutation.addedNodes).forEach((node) => {
                         if ($(node).find('#card').hasClass('yt-live-chat-viewer-engagement-message-renderer')){
-                            console.log('special chat engage!!!');
                             return
                         }
                         let minLine, minMove = 10e30;
                         let parsedComment = parseComment(node);
                         if (parsedComment.postTIme < currentTick() - config.commentSpeed){
                             return;
+                        }
+                        if (config.blockedUsers.some((blockedUser) => { // blocked user
+                            return blockedUser[0] == parsedComment.from
+                        })){
+                            return
+                        }
+                        if (config.blockedComments.some((blockedComment) => { // blocked comment
+                            return blockedComment[0] == parsedComment.hash
+                        })){
+                            return
                         }
                         let commentSize = calcCommentSize(parsedComment);
                         let commentWidth = commentSize[0];
@@ -409,7 +429,7 @@
                             loadedCount += 1;
                             if (loadedCount == toBeLoaded){
                                 newImages.forEach((image) => {
-                                    context.drawImage(image, Math.floor(image.cX), 0, Math.floor(commentCanvas.height * config.fontSize), Math.floor(commentCanvas.height * config.fontSize));
+                                    context.drawImage(image, Math.floor(image.cX), comment.height * 0.2, Math.floor(commentCanvas.height * config.fontSize), Math.floor(commentCanvas.height * config.fontSize));
                                 })
                             }
                         }
@@ -420,6 +440,10 @@
                         break
                 }
             })
+            if (comment.from == 'self'){
+                context.strokeStyle = config.userCommentStrokeColor;
+                context.strokeRect(0, 0, currentX, comment.height * 1.1);
+            }
         }
 
 
@@ -481,7 +505,11 @@
             let obj = new Object();
             obj.parsed = new Array();
             obj.id = comment.id;
-            obj.from = $(comment.querySelector('#img')).attr('src').split('/')[userIdIndexOfImageSrc]
+            if ($(comment.querySelector('#img')).attr('src')){
+                obj.from = $(comment.querySelector('#img')).attr('src').split('/')[userIdIndexOfImageSrc];
+            } else {
+                obj.from = 'self';
+            }
             let timestamp = $(comment.querySelector('#timestamp')).text().split(':')
             obj.postTIme = (timestamp.length == 2)? timestamp[0] * 60 + timestamp[1] * 1 : timestamp[0] * 3600 + timestamp[1] * 60 + timestamp[2] * 1;
             comment = comment.querySelector(messageFieldSelector).innerHTML;
@@ -506,24 +534,26 @@
             let fullwidth = ctx.measureText('--').width;
             let currentWidth;
             let metrics;
+            let texts = [];
             comment.parsed.forEach((state) => {
                 switch (state.type){
                     case 0: // str
                         metrics = ctx.measureText(state.text);
-                        currentWidth = metrics.width
-                        height = Math.max(height, metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent)
+                        currentWidth = metrics.width;
+                        texts.push(state.text)
                         width += currentWidth;
                         state.width = currentWidth;
                         break;
                     case 1: // emoji
                         width += fullwidth;
-                        height = Math.max(height, fullwidth)
+                        height = Math.floor(commentCanvas.height * config.fontSize);
                         state.width = fullwidth;
                         break
                 };
             });
-            comment.height = height;
-            return [width, height]
+            metrics = ctx.measureText(texts.join(''));
+            comment.height = Math.max(metrics.actualBoundingBoxDescent - metrics.actualBoundingBoxAscent, height);
+            return [width, comment.height]
         }
 
 
@@ -547,11 +577,9 @@
         // seek handler
         video.onseeking = () => {
             currentPlayState = 0;
-            console.log('seeking');
         }
         video.onseeked = () => {
             currentPlayState = checkVideoIsPaused();
-            console.log('seeked');
         }
 
         // draw　comment
