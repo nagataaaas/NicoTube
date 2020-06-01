@@ -377,6 +377,7 @@
         const mainCanvasResize = () => {
             commentCanvas.width = video.getBoundingClientRect().width;
             commentCanvas.height = video.getBoundingClientRect().height;
+            commentCanvas.style.top = video.style.top;
             ctx.font = `${config.isBold ? 'bold' : ''} ${commentCanvas.height * config.fontSize}pt '${config.fontFamily}'`;
             ctx.shadowColor = config.fontColor;
             ctx.globalAlpha = config.canvasAlpha;
@@ -400,6 +401,7 @@
             resized = true;
             commentCanvas.width = video.getBoundingClientRect().width;
             commentCanvas.height = video.getBoundingClientRect().height;
+            commentCanvas.style.top = video.style.top;
             mainCanvasResize();
             comments.forEach((commentLine) => {
                 commentLine.forEach((comment) => {
@@ -426,47 +428,49 @@
         comments = commentInit();
         const commentObserver = globalMutations.comment || new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
-                if (mutation.addedNodes.length > 0) {
-                    Array.from(mutation.addedNodes).forEach((node) => {
-                        if ($(node).find('#card').hasClass('yt-live-chat-viewer-engagement-message-renderer')) {
-                            return
-                        }
-                        let minLine, minMove = 10e30;
-                        let parsedComment = parseComment(node);
-                        if (parsedComment.postTIme < currentTick() - config.commentSpeed) {
-                            return;
-                        }
-                        if (config.blockedUsers.some((blockedUser) => { // blocked user
-                            return blockedUser[0] == parsedComment.from
-                        })) {
-                            return
-                        }
-                        if (config.blockedComments.some((blockedComment) => { // blocked comment
-                            return blockedComment[0] == parsedComment.hash
-                        })) {
-                            return
-                        }
-                        let commentSize = calcCommentSize(parsedComment);
-                        let commentWidth = commentSize[0];
-                        let fullMoveWidth = $(commentCanvas).width() + commentWidth;
-                        let commentCanvasRatio = $(commentCanvas).width() / fullMoveWidth;
-                        let startGetOut = currentTick() + commentCanvasRatio * config.commentSpeed;
-                        let _ = comments.some((commentLine) => {
-                            let lastCommentShowComplete = commentLine.length == 0 || config.commentSpeed / (commentCanvas.width + commentLine[commentLine.length - 1].width) * commentLine[commentLine.length - 1].width + commentLine[commentLine.length - 1].timestamp
-                            if (commentLine.length == 0 || (commentLine[commentLine.length - 1].expired < startGetOut && lastCommentShowComplete < currentTick())) {
-                                commentLine.push(commentObj(parsedComment, currentTick(), currentTick() + config.commentSpeed, commentSize));
-                                return true;
+                setTimeout(() => {
+                    if (mutation.addedNodes.length > 0) {
+                        Array.from(mutation.addedNodes).forEach((node) => {
+                            if ($(node).find('#card').hasClass('yt-live-chat-viewer-engagement-message-renderer')) {
+                                return
                             }
-                            if (minMove > commentLine[commentLine.length - 1].expired) {
-                                minMove = commentLine[commentLine.length - 1].expired;
-                                minLine = commentLine;
+                            let minLine, minMove = 10e30;
+                            let parsedComment = parseComment(node);
+                            if (parsedComment.postTIme < currentTick() - config.commentSpeed) {
+                                return;
                             }
-                        }) || (() => {
-                            minLine.push(commentObj(parsedComment, currentTick(), currentTick() + config.commentSpeed, commentSize));
-                            return true
-                        })();
-                    })
-                }
+                            if (config.blockedUsers.some((blockedUser) => { // blocked user
+                                return blockedUser[0] == parsedComment.from
+                            })) {
+                                return
+                            }
+                            if (config.blockedComments.some((blockedComment) => { // blocked comment
+                                return blockedComment[0] == parsedComment.hash
+                            })) {
+                                return
+                            }
+                            let commentSize = calcCommentSize(parsedComment);
+                            let commentWidth = commentSize[0];
+                            let fullMoveWidth = $(commentCanvas).width() + commentWidth;
+                            let commentCanvasRatio = $(commentCanvas).width() / fullMoveWidth;
+                            let startGetOut = currentTick() + commentCanvasRatio * config.commentSpeed;
+                            let _ = comments.some((commentLine) => {
+                                let lastCommentShowComplete = commentLine.length == 0 || config.commentSpeed / (commentCanvas.width + commentLine[commentLine.length - 1].width) * commentLine[commentLine.length - 1].width + commentLine[commentLine.length - 1].timestamp
+                                if (commentLine.length == 0 || (commentLine[commentLine.length - 1].expired < startGetOut && lastCommentShowComplete < currentTick())) {
+                                    commentLine.push(commentObj(parsedComment, currentTick(), currentTick() + config.commentSpeed, commentSize));
+                                    return true;
+                                }
+                                if (minMove > commentLine[commentLine.length - 1].expired) {
+                                    minMove = commentLine[commentLine.length - 1].expired;
+                                    minLine = commentLine;
+                                }
+                            }) || (() => {
+                                minLine.push(commentObj(parsedComment, currentTick(), currentTick() + config.commentSpeed, commentSize));
+                                return true
+                            })();
+                        })
+                    }
+                }, 200)
             });
         });
         globalMutations.comment = commentObserver;
@@ -494,9 +498,9 @@
                 let beforeFillStyle = context.fillStyle;
                 let beforeStrokeStyle = context.strokeStyle;
                 context.fillStyle = comment.color;
-                config.showSuperChatBackground && context.fillRect(0, 0, wholeX, comment.height * 1.4);
+                config.showSuperChatBackground && context.fillRect(0, 0, wholeX + comment.height * 0.2, comment.height * 1.4);
                 context.strokeStyle = comment.strokeColor;
-                config.showSuperChatStroke && context.strokeRect(0, 0, wholeX, comment.height * 1.4);
+                config.showSuperChatStroke && context.strokeRect(0, 0, wholeX + comment.height * 0.2, comment.height * 1.4);
                 context.fillStyle = beforeFillStyle;
                 context.strokeStyle = beforeStrokeStyle;
             }
@@ -516,7 +520,7 @@
                             loadedCount += 1;
                             if (loadedCount == toBeLoaded) {
                                 newImages.forEach((image) => {
-                                    context.drawImage(image, Math.floor(image.cX), comment.height * 0.3, Math.floor(commentCanvas.height * config.fontSize), Math.floor(commentCanvas.height * config.fontSize));
+                                    context.drawImage(image, Math.floor(image.cX), comment.height * 0.2, Math.floor(commentCanvas.height * config.fontSize), Math.floor(commentCanvas.height * config.fontSize));
                                 })
                             }
                         }
@@ -610,32 +614,24 @@
                 obj.type = 0;
             }
 
+            let userName = $(document.getElementById('chatframe').contentDocument.querySelector('#input-panel').querySelector('#author-name')).text().trim()
 
-            if ($(comment.querySelector('#img')).attr('src')) {
-                obj.from = $(comment.querySelector('#img')).attr('src').split('/')[userIdIndexOfImageSrc];
-            } else {
+            if ($(comment.querySelector('#author-name')).text().trim() == userName ||
+                $(comment.querySelector('#author-name')).text().trim() == `"${userName}"`) {
                 obj.from = 'self';
+            } else {
+                obj.from = $(comment.querySelector('#img')).attr('src').split('/')[userIdIndexOfImageSrc];
             }
 
             if (obj.type == 0 || obj.type == 1) {
                 let timestamp = $(comment.querySelector('#timestamp')).text().split(':')
                 obj.postTIme = (timestamp.length == 2) ? timestamp[0] * 60 + timestamp[1] * 1 : timestamp[0] * 3600 + timestamp[1] * 60 + timestamp[2] * 1;
-                if ($(comment.querySelector('#img')).attr('src')) {
-                    obj.from = $(comment.querySelector('#img')).attr('src').split('/')[userIdIndexOfImageSrc];
-                } else {
-                    obj.from = 'self';
-                }
                 comment = comment.querySelector(messageFieldSelector).innerHTML;
             } else if (obj.type == 2) {
                 let timestamp = $(comment.querySelector('#timestamp')).text().split(':')
                 obj.postTIme = (timestamp.length == 2) ? timestamp[0] * 60 + timestamp[1] * 1 : timestamp[0] * 3600 + timestamp[1] * 60 + timestamp[2] * 1;
                 obj.purchaseAmount = $(comment.querySelector('#purchase-amount')).text()
                 config.showSuperChatAmount && obj.parsed.push(stateObj(0, ' ' + obj.purchaseAmount + ' '));
-                if ($(comment.querySelector('#img')).attr('src')) {
-                    obj.from = $(comment.querySelector('#img')).attr('src').split('/')[userIdIndexOfImageSrc];
-                } else {
-                    obj.from = 'self';
-                }
                 comment = comment.querySelector(messageFieldSelector).innerHTML;
             }
 
@@ -724,7 +720,6 @@
             try {
                 ctx.drawImage(comment.canvas, x, y);
             } catch (e) {
-                console.log(e);
             }
         }
 
