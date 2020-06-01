@@ -15,8 +15,10 @@
 /* globals jQuery, $ */
 // ==/UserScript==
 
+// comment icon by Freepik(http://www.freepik.com/) from www.flaticon.com
+// block icon by Those Icons(https://www.flaticon.com/free-icon/) from www.flaticon.com
+
 (function(){
-    // comment icon by Freepik(http://www.freepik.com/) from www.flaticon.com
     let availableIcon = `<path d="m0 0v342h120.148438v112.054688l181.253906-112.054688h210.597656v-342zm360.996094 214.335938h-209.992188v-30h209.988282v30zm0-65.175782h-209.992188v-30h209.988282v30zm0 0" fill="white" id="nicotubepath1"/>`
     let unavailableIcon = `<path d="m0 0v342h120.148438v112.054688l181.253906-112.054688h210.597656v-342zm482 312h-189.121094l-142.730468 88.238281v-88.238281h-120.148438v-282h452zm0 0" fill="white" id="nicotubepath2" style="visibility:hidden;"/><path d="m151.003906 121.160156h209.988282v30h-209.988282zm0 0" fill="white" id="nicotubepath3" style="visibility:hidden;"/><path d="m151.003906 183h209.988282v30h-209.988282zm0 0" fill="white" id="nicotubepath4" style="visibility:hidden;"/>`
     let commentToggleButton = `<button class="ytp-button" aria-label="NicoTibe" title="NicoTibe" show="true" id="nicotubeswitch"><svg height="100%" viewBox="-128 -157 768 768" width="100%">${availableIcon}${unavailableIcon}</svg></button>`
@@ -32,6 +34,13 @@
             return hash;
         }
     });
+
+    const createElementFromHTML = (htmlString) => {
+        let div = document.createElement('div');
+        document.body.append(div)
+        div.innerHTML = htmlString.trim();
+        return div.firstChild;
+    }
 
     const getVars = () => {
         let userConfig = {
@@ -100,7 +109,7 @@
 
         // on off switch
         nicoTubeSwitch.get(0).onclick = () => {
-            let currentSwitch = eval(nicoTubeSwitch.attr('show'));
+            let currentSwitch = nicoTubeSwitch.attr('show') == 'true';
             nicoTubeSwitch.attr('show', !currentSwitch)
             $('#nicotubepath1').css('visibility', (currentSwitch? 'hidden': 'visible'));
             $('#nicotubepath2').css('visibility', (!currentSwitch? 'hidden': 'visible'));
@@ -134,8 +143,78 @@
             $('#movie_player > div.ytp-tooltip.ytp-bottom').css('display', 'none')
         }
 
+        // youtube default contextmenu
+        let contextMenu;
+        let nicoTubeContextMenu = createElementFromHTML(`
+<div class="ytp-popup ytp-contextmenu" style="width: 300px; height: 240px; display: none;" id="nicoTubeContextMenu">
+<div class="ytp-panel" style="min-width: 250px; width: 300px; height: 240px;">
+
+<canvas id="contextMenuCanvas"></canvas>
+
+<div class="ytp-panel-menu" role="menu" style="height: 180px;">
+<div class="ytp-menuitem" aria-haspopup="false" aria-checked="false" tabindex="0" id="userblock">
+<div class="ytp-menuitem-icon">
+<svg fill="none" height="24" viewBox="0 0 512 512" width="24">
+<path d="M426.667,85.333c-7.76,0-15.052,2.083-21.333,5.729V64c0-23.531-19.135-42.667-42.667-42.667    c-8.781,0-16.938,2.667-23.729,7.219C333.094,11.948,317.25,0,298.667,0c-18.583,0-34.427,11.948-40.271,28.552    c-6.792-4.552-14.948-7.219-23.729-7.219C211.135,21.333,192,40.469,192,64v264.146c0,5.375-3.542,8.135-5.063,9.073    s-5.615,2.865-10.375,0.469l-68.5-34.25c-6.24-3.125-13.229-4.771-20.208-4.771c-24.917,0-45.187,20.271-45.187,45.188V352    c0,2.958,1.229,5.781,3.385,7.802l123.115,114.906C194.937,498.75,228.542,512,263.781,512h66.885    c76.458,0,138.667-62.208,138.667-138.667V128C469.333,104.469,450.198,85.333,426.667,85.333z M448,373.333    c0,64.698-52.635,117.333-117.333,117.333h-66.885c-29.813,0-58.25-11.208-80.052-31.563L64,347.365v-3.51    C64,330.698,74.698,320,87.854,320c3.677,0,7.375,0.875,10.667,2.521l68.5,34.25c9.969,5.01,21.635,4.458,31.135-1.396    c9.5-5.875,15.177-16.052,15.177-27.229V64c0-11.76,9.573-21.333,21.333-21.333C246.427,42.667,256,52.24,256,64v138.667    c0,5.896,4.771,10.667,10.667,10.667c5.896,0,10.667-4.771,10.667-10.667v-160c0-11.76,9.573-21.333,21.333-21.333    c11.76,0,21.333,9.573,21.333,21.333v160c0,5.896,4.771,10.667,10.667,10.667c5.896,0,10.667-4.771,10.667-10.667V64    c0-11.76,9.573-21.333,21.333-21.333S384,52.24,384,64v170.667c0,4.042,2.323,7.75,5.938,9.563c0.01,0,0.021,0.01,0.042,0.021    s0.042,0.021,0.063,0.031c0.052,0.021,0.104,0.042,0.146,0.073c0.021,0,0.021,0.021,0.042,0.01l0.01,0.01    c0.01,0,0.021,0.01,0.021,0.01c0.021,0.01,0.021,0.01,0.042,0.01c0.01,0.021,0.021,0.021,0.031,0.021l0.031,0.01    c0.01,0,0.01,0.021,0.042,0.021c0.021,0.042,0.042,0.01,0.042,0.01c5.135,2.25,11.24,0.094,13.802-5    c0.917-1.844,1.26-3.823,1.083-5.729V128c0-11.76,9.573-21.333,21.333-21.333S448,116.24,448,128V373.333z" fill="white"/>
+</svg>
+</div>
+<div class="ytp-menuitem-label">投稿ユーザーブロック</div>
+<div class="ytp-menuitem-content"></div>
+</div>
+
+<div class="ytp-menuitem" aria-haspopup="false" role="menuitem" tabindex="0" id="commentblock">
+<div class="ytp-menuitem-icon">
+<svg fill="none" height="24" viewBox="0 0 512 512" width="24">
+<path d="M426.667,85.333c-7.76,0-15.052,2.083-21.333,5.729V64c0-23.531-19.135-42.667-42.667-42.667    c-8.781,0-16.938,2.667-23.729,7.219C333.094,11.948,317.25,0,298.667,0c-18.583,0-34.427,11.948-40.271,28.552    c-6.792-4.552-14.948-7.219-23.729-7.219C211.135,21.333,192,40.469,192,64v264.146c0,5.375-3.542,8.135-5.063,9.073    s-5.615,2.865-10.375,0.469l-68.5-34.25c-6.24-3.125-13.229-4.771-20.208-4.771c-24.917,0-45.187,20.271-45.187,45.188V352    c0,2.958,1.229,5.781,3.385,7.802l123.115,114.906C194.937,498.75,228.542,512,263.781,512h66.885    c76.458,0,138.667-62.208,138.667-138.667V128C469.333,104.469,450.198,85.333,426.667,85.333z M448,373.333    c0,64.698-52.635,117.333-117.333,117.333h-66.885c-29.813,0-58.25-11.208-80.052-31.563L64,347.365v-3.51    C64,330.698,74.698,320,87.854,320c3.677,0,7.375,0.875,10.667,2.521l68.5,34.25c9.969,5.01,21.635,4.458,31.135-1.396    c9.5-5.875,15.177-16.052,15.177-27.229V64c0-11.76,9.573-21.333,21.333-21.333C246.427,42.667,256,52.24,256,64v138.667    c0,5.896,4.771,10.667,10.667,10.667c5.896,0,10.667-4.771,10.667-10.667v-160c0-11.76,9.573-21.333,21.333-21.333    c11.76,0,21.333,9.573,21.333,21.333v160c0,5.896,4.771,10.667,10.667,10.667c5.896,0,10.667-4.771,10.667-10.667V64    c0-11.76,9.573-21.333,21.333-21.333S384,52.24,384,64v170.667c0,4.042,2.323,7.75,5.938,9.563c0.01,0,0.021,0.01,0.042,0.021    s0.042,0.021,0.063,0.031c0.052,0.021,0.104,0.042,0.146,0.073c0.021,0,0.021,0.021,0.042,0.01l0.01,0.01    c0.01,0,0.021,0.01,0.021,0.01c0.021,0.01,0.021,0.01,0.042,0.01c0.01,0.021,0.021,0.021,0.031,0.021l0.031,0.01    c0.01,0,0.01,0.021,0.042,0.021c0.021,0.042,0.042,0.01,0.042,0.01c5.135,2.25,11.24,0.094,13.802-5    c0.917-1.844,1.26-3.823,1.083-5.729V128c0-11.76,9.573-21.333,21.333-21.333S448,116.24,448,128V373.333z" fill="white"/>
+</svg>
+</div>
+<div class="ytp-menuitem-label">コメントブロック</div>
+<div class="ytp-menuitem-content"></div>
+</div>
+
+<div class="ytp-menuitem" aria-haspopup="false" role="menuitem" tabindex="0" id="commentcopy">
+<div class="ytp-menuitem-icon">
+<svg height="100%" viewBox="0 0 36 36" width="100%">
+<path d="M5.85 18.0c0.0-2.56 2.08-4.65 4.65-4.65h6.0V10.5H10.5c-4.14 .0-7.5 3.36-7.5 7.5s3.36 7.5 7.5 7.5h6.0v-2.85H10.5c-2.56 .0-4.65-2.08-4.65-4.65zM12.0 19.5h12.0v-3.0H12.0v3.0zm13.5-9.0h-6.0v2.85h6.0c2.56 .0 4.65 2.08 4.65 4.65s-2.08 4.65-4.65 4.65h-6.0V25.5h6.0c4.14 .0 7.5-3.36 7.5-7.5s-3.36-7.5-7.5-7.5z" fill="#fff"></path>
+</svg>
+</div>
+<div class="ytp-menuitem-label">コメントコピー</div>
+<div class="ytp-menuitem-content"></div>
+</div>
+
+</div>
+</div>`)
+        console.log(nicoTubeContextMenu)
+        console.log('here!!!!!!!!!!!!!!!!!!!!')
+        let contextMenuCanvas = $('#contextMenuCanvas')
+
+        const contextMenuCanvasInit = (menuCanvas_) => {
+            let menuCanvas = menuCanvas_.get(0);
+            let menuCtx = menuCanvas.getContext('2d');
+            menuCanvas.width = 300;
+            menuCanvas.height = 50;
+            console.log(menuCanvas.width)
+        }
+
+        const contextMenuCanvasDraw = (menuCanvas_, fromCanvas) => {
+            let menuCanvas = menuCanvas_.get(0);
+            let menuCtx = menuCanvas.getContext('2d');
+            let ratio = 30 / (commentCanvas.height * config.fontSize * 2)
+            menuCanvas.width = menuCanvas.width;
+            console.log(ratio)
+            menuCtx.drawImage(fromCanvas, 20, 17, fromCanvas.width * ratio, fromCanvas.height * ratio)
+        }
+        contextMenuCanvasInit(contextMenuCanvas);
+
+        const contextMenuPopObserver = new MutationObserver((mutations) => {
+            mutations[0].target.style.display = 'none';
+        });
+
+        let contextMenuPopObserverSetting = { attributes: true, childList: false, characterData: false };
+
         // comment right click
         $(document).on('contextmenu', (e) => {
+            e.preventDefault()
             let x = e.clientX;
             let y = e.clientY;
             let canvasX = $(commentCanvas).offset().left;
@@ -144,17 +223,25 @@
                 y = y - canvasY;
                 let lane = Math.floor(y / (commentCanvas.height * config.fontSize * (config.commentMargin + 1)))
                 let matchComment;
+                if (!comments || !comments[lane]) return;
                 comments[lane].reverse().some((comment) => {
-                    let comX = commentCanvas.width - (commentCanvas.width + comment.width) * ((currentTick() - comment.timestamp) / (config.commentSpeed));
+                    let comX = commentCanvas.width - (commentCanvas.width + comment.width) * ((currentTick() - comment.timestamp) / (config.commentSpeed)) + commentCanvas.getBoundingClientRect().left;
                     if (comX <= x && x <= comX + comment.width){
                         matchComment = comment;
                         return true;
                     }
                 })
                 if (matchComment){
+                    contextMenu = $('body > div.ytp-popup.ytp-contextmenu').get(0) || $('#movie_player > div.ytp-popup.ytp-contextmenu.ytp-big-mode').get(0);
+                    console.log(contextMenu)
+                    contextMenu.style.display = 'none';
+                    contextMenuPopObserver.observe(contextMenu, contextMenuPopObserverSetting);
                     e.preventDefault();
-                    e.stopPropagation();
+                    $(nicoTubeContextMenu).css('top', y);
+                    $(nicoTubeContextMenu).css('left', x);
+                    $(nicoTubeContextMenu).css('display', '');
                     console.log(matchComment)
+                    contextMenuCanvasDraw(contextMenuCanvas, matchComment.canvas);
                     $(commentCanvas).css('pointer-events', '');
                     return false;
                 }
@@ -164,6 +251,8 @@
         // click canvas after right click comment
         commentCanvas.onclick = () => {
             $(commentCanvas).css('pointer-events', 'none');
+            $(nicoTubeContextMenu).css('display', 'none');
+            contextMenuPopObserver.disconnect();
         }
 
         // current tick calculator
@@ -275,7 +364,6 @@
 
         // render to offscreen canvas
         const drawCommentOffScreen = (canvas, context, comment) => {
-            console.log('drawing')
             let currentX = 0;
             let imageSrc, newImage;
             let loadedCount = 0;
@@ -284,8 +372,8 @@
             comment.parsed.forEach((seps)=>{
                 switch (seps.type){
                     case 0:
-                        context.strokeText(seps.text, Math.floor(currentX), 5);
-                        context.fillText(seps.text, Math.floor(currentX), 5);
+                        context.strokeText(seps.text, Math.floor(currentX), comment.height * 0.1);
+                        context.fillText(seps.text, Math.floor(currentX), comment.height * 0.1);
                         currentX += seps.width;
                         break
                     case 1:
@@ -409,6 +497,7 @@
                         break
                 };
             });
+            comment.height = height;
             return [width, height]
         }
 
