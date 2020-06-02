@@ -375,7 +375,7 @@
 
         // resize canvas handler
         const mainCanvasResize = () => {
-            commentCanvas.width = video.getBoundingClientRect().width;
+            commentCanvas.width = player.getBoundingClientRect().width;
             commentCanvas.height = video.getBoundingClientRect().height;
             commentCanvas.style.top = video.style.top;
             ctx.font = `${config.isBold ? 'bold' : ''} ${commentCanvas.height * config.fontSize}pt '${config.fontFamily}'`;
@@ -399,7 +399,7 @@
 
         const resizeHandler = () => {
             resized = true;
-            commentCanvas.width = video.getBoundingClientRect().width;
+            commentCanvas.width = player.getBoundingClientRect().width;
             commentCanvas.height = video.getBoundingClientRect().height;
             commentCanvas.style.top = video.style.top;
             mainCanvasResize();
