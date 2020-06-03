@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            NicoTube
 // @namespace       NicoTube
-// @version         0.0.8
+// @version         0.0.9
 // @description     Youtubeのライブチャットをniconicoの様に描画します
 // @author          @nagataaaas
 // @name:en         NicoTube
@@ -292,21 +292,29 @@
         globalMutations.hover = hoverObserver;
 
         nicoTubeSwitch.onmouseover = () => {
+            let settingButton = document.querySelector('#movie_player > div.ytp-chrome-bottom > div.ytp-chrome-controls > div.ytp-right-controls > button.ytp-button.ytp-settings-button')
             isMouseOn = true;
             hoverObserver.disconnect();
+            if (!getToolNamePop()) {
+                let e = new Event('mouseover');
+                settingButton.dispatchEvent(e);
+                settingButton.classList.remove('ytp-preview');
+                nicoTubeSwitch.onmouseover();
+                return
+            }
             hoverObserver.observe(getToolNamePop(), {
                 attributes: true,
                 childList: false,
-                characterData: false,
-                attributeFilter: ['display']
+                characterData: false
             });
             $(getToolNamePop()).css({'display': '', 'left': $(nicoTubeSwitch).offset().left + 'px'})
-            $(getToolNamePop().querySelector('div.ytp-tooltip-text-wrapper > span').text('NicoTube'))
+            $(getToolNamePop().querySelector('div.ytp-tooltip-text-wrapper > span')).text('NicoTube')
         }
 
         nicoTubeSwitch.onmouseout = () => {
             isMouseOn = false;
             hoverObserver.disconnect();
+            $(getToolNamePop()).css({'display': 'none'})
         }
 
         // youtube default contextmenu
@@ -358,8 +366,10 @@
                     }
                     index--;
                 })
-                if (matchComment)
-                    rightClickTargetComment = matchComment;
+                if (!matchComment) {
+                    return
+                }
+                rightClickTargetComment = matchComment;
                 let youtubeContextMenu = document.querySelector('body > div.ytp-popup.ytp-contextmenu') || document.querySelector('#movie_player > div.ytp-popup.ytp-contextmenu.ytp-big-mode');
                 youtubeContextMenu.style.display = 'none';
                 contextMenuPopObserver.disconnect();
@@ -385,6 +395,7 @@
         // click on nicotube context menu
         $('#userblock').on('click', (e) => {
             $(nicoTubeContextMenu).css('display', 'none');
+            $(commentCanvas).css('pointer-events', 'none');
             config.blockedUsers.push([rightClickTargetComment.from, comentToText(rightClickTargetComment)])
             AllCommentLanes[rightClickTargetCommentIndex.lane]
                 .splice(rightClickTargetCommentIndex.index, 1)
@@ -394,6 +405,7 @@
         $('#commentblock').on('click', (e) => {
             config.blockedComments.push([rightClickTargetComment.hash, comentToText(rightClickTargetComment)])
             $(nicoTubeContextMenu).css('display', 'none');
+            $(commentCanvas).css('pointer-events', 'none');
             AllCommentLanes[rightClickTargetCommentIndex.lane]
                 .splice(rightClickTargetCommentIndex.index, 1)
             needToRedraw = true;
@@ -401,6 +413,7 @@
 
         $('#commentcopy').on('click', (e) => {
             $(nicoTubeContextMenu).css('display', 'none');
+            $(commentCanvas).css('pointer-events', 'none');
             GM_setClipboard(comentToText(rightClickTargetComment));
         });
 
@@ -413,7 +426,6 @@
 
         // click canvas after right click comment
         commentCanvas.onclick = () => {
-            $(commentCanvas).css('pointer-events', 'none');
             $(nicoTubeContextMenu).css('display', 'none');
             contextMenuPopObserver.disconnect();
         }
@@ -718,7 +730,7 @@
                 obj.parsed = [stateObj(0, obj.author)]
                 return obj;
             } else if (card.hasClass('yt-live-chat-viewer-engagement-message-renderer')) {
-                obj.type = 3;
+                obj.type = 4;
                 return obj;
             } else if (author.hasClass('member')) {
                 obj.type = 1;
@@ -831,7 +843,7 @@
             currentPlayState = checkVideoIsPaused();
         }
 
-        // draw　comment
+        // draw comment
         const drawComment = (comment, x, y) => {
             try {
                 commentContext.drawImage(comment.canvas, x, y + calcFontSize() * (config.commentMargin + 1) * comment.laneOffset);
@@ -840,12 +852,79 @@
         }
 
         let newComers = [];
+        let hands = ['👋', '👋🏻', '👋🏼', '👋🏽', '👋🏾', '👋🏿']
         const welcomeNewMember = (comment) => {
-            newComers.push([performance.now(), comment.text])
+            let canvas = createCanvas(calcFontSize() * 3, calcFontSize() * 3, comment);
+            let rotationCanvas = createCanvas(calcFontSize() * 3, calcFontSize() * 3, comment);
+            let timestamp = performance.now();
+            let hand = hands[Math.floor(timestamp % hands.length)];
+
+            canvas.context.textBaseline = 'bottom';
+            rotationCanvas.context.textAlign = 'bottom';
+            canvas.context.textBaseline = 'right';
+            rotationCanvas.context.textAlign = 'right';
+
+            canvas.context.fillText(hand, calcFontSize(), calcFontSize()*2);
+            newComers.push({
+                timestamp: timestamp, name: comment.author,
+                number: newComers.length, canvas: canvas.canvas, context: canvas.context,
+                rotationCanvas: rotationCanvas.canvas, rotationContext: rotationCanvas.context
+            });
         }
 
-        const drawWelcome = () => {
+        let showDuration = 0.7;
+        let animationDuration = 1.0;
+        let disappearDuration = 0.7;
 
+        let showDurationMilli = showDuration * 1000.0;
+        let animationDurationMilli = animationDuration * 1000.0;
+        let disappearDurationMilli = disappearDuration * 1000.0;
+
+        let startToShown = showDurationMilli;
+        let startToAnimated = startToShown + animationDurationMilli;
+        let startToEnd = startToAnimated + disappearDurationMilli;
+
+        const drawWelcome = () => {
+            let currentTime = performance.now();
+            let y = (AllCommentLanes.length - 1) * calcFontSize() * (config.commentMargin + 1)
+
+            newComers.forEach((animation) => {
+                if (animation.timestamp + startToShown > currentTime) { // showing up
+                    let xStart = -animation.canvas.width;
+                    let xTarget = animation.canvas.width * animation.number / 2;
+                    let x = (xTarget - xStart) / showDurationMilli * (currentTime - animation.timestamp)
+                    commentContext.drawImage(animation.canvas, x + xStart, y);
+                } else if (animation.timestamp + startToAnimated > currentTime) {
+                    const rotateCanvas = (degree) => {
+                        animation.rotationCanvas.width = animation.rotationCanvas.width;
+
+                        animation.rotationContext.save()
+
+                        animation.rotationContext.translate(Math.floor(calcFontSize()) * 3, Math.floor(calcFontSize()*2));
+                        animation.rotationContext.rotate(degree * Math.PI / 180);
+                        animation.rotationContext.drawImage(animation.canvas, -calcFontSize() * 3, -calcFontSize()*2)
+
+                        animation.rotationContext.restore()
+
+                        commentContext.drawImage(animation.rotationCanvas, xTarget, y);
+                    }
+                    let rotations = [0, -10, 12, -10, 9, 0, 0, 0, 0, 0];
+                    let currentLevel = (currentTime - animation.timestamp - startToShown) / animationDuration / 100
+                    let rotationIndex = Math.floor(currentLevel);
+                    let rotationDegree = (rotations[rotationIndex + 1] - rotations[rotationIndex]) * (currentLevel % 1) + rotations[rotationIndex]
+                    let xTarget = animation.canvas.width * animation.number / 2;
+                    rotateCanvas(rotationDegree)
+                } else if (animation.timestamp + startToEnd > currentTime) {
+                    let xTarget = -animation.canvas.width;
+                    let xStart = animation.canvas.width * animation.number / 2;
+                    let x = (xTarget - xStart) / disappearDurationMilli * (currentTime - animation.timestamp - startToAnimated)
+                    commentContext.drawImage(animation.canvas, x + xStart, y);
+                } else {
+                    animation.canvas.remove();
+                    animation.rotationCanvas.remove();
+                    newComers.shift();
+                }
+            })
         }
 
         // update
