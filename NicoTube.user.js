@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            NicoTube
 // @namespace       NicoTube
-// @version         0.0.6
+// @version         0.0.7
 // @description     Youtubeのライブチャットをniconicoの様に描画します
 // @author          @nagataaaas
 // @name:en         NicoTube
@@ -406,6 +406,7 @@
         });
         resizeObserver.disconnect();
         resizeObserver.observe(video);
+        resizeObserver.observe(player);
 
         const resizeHandler = () => {
             resized = true;
@@ -569,12 +570,18 @@
             obj.redraw = () => {
                 let size = calcCommentSize(obj.comment)
                 obj.width = size[0];
-                obj.height = size[1] * 2;
-                obj.canvas.width = obj.width;
-                obj.canvas.height = obj.height;
+                obj.height = size[1];
+                obj.canvas.width = obj.width * 1.2;
+                obj.canvas.height = obj.height * 2;
                 obj.ctx.font = `${config.isBold ? 'bold' : ''} ${commentCanvas.height * config.fontSize}pt '${config.fontFamily}'`;
                 obj.ctx.textBaseline = 'top';
-                obj.ctx.fillStyle = config.fontColor;
+                if (obj.comment.type == 0 || obj.comment.type == 2 || (obj.comment.type == 1 && !config.changeColorOfMember) || (obj.comment.type == 5 && !config.changeColorOfModerator)) {
+                    obj.ctx.fillStyle = config.fontColor;
+                } else if (obj.comment.type == 1) {
+                    obj.ctx.fillStyle = config.memberFontColor;
+                } else if (obj.comment.type == 5) {
+                    obj.ctx.fillStyle = config.moderatorFontColor;
+                }
                 obj.ctx.lineWidth = commentCanvas.height * config.fontSize * config.borderWidth;
                 obj.ctx.strokeStyle = config.borderColor;
                 drawCommentOffScreen(obj.canvas, obj.ctx, obj.comment);
