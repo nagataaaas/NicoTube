@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            NicoTube
 // @namespace       NicoTube
-// @version         0.0.5
+// @version         0.0.6
 // @description     Youtubeのライブチャットをniconicoの様に描画します
 // @author          @nagataaaas
 // @name:en         NicoTube
@@ -37,6 +37,7 @@
             commentMargin: 0.4, // Relative size to fontSize
             fontColor: '#FFFFFF', // color of comment (default to white
             memberFontColor: '#2cb879', // color of member comment (default to green
+            moderatorFontColor: '#7581b8', // color of moderator comment (default to purple
             canvasAlpha: 0.5, // alpha of comment
             borderWidth: 0.1, // Relative size to fontSize
             borderColor: '#000000', // color of border (default to black
@@ -45,17 +46,24 @@
             showSuperChatAmount: true, // whether show the amount of super chat
             showSuperChatBackground: true, // whether show the background of super chat
             showSuperChatStroke: true, // whether show the stroke of super chat
-            changeColorOfMember: true, // whether show the amount of super chat
+            changeColorOfMember: true, // whther change the color of member
+            changeColorOfModerator: true, // whther change the color of moderator
+            welcomeNewMember: true // pop welcome animation to new member
         };
         return userConfig;
     };
+
+    const htmlDecode = (input) => {
+        var doc = new DOMParser().parseFromString(input, "text/html");
+        return doc.documentElement.textContent;
+    }
 
     const saveConfig = () => {
 // --------------------------------------------------------------------------------------------------------------------------------------
     }
     let availableIcon = `<path d="m0 0v342h120.148438v112.054688l181.253906-112.054688h210.597656v-342zm360.996094 214.335938h-209.992188v-30h209.988282v30zm0-65.175782h-209.992188v-30h209.988282v30zm0 0" fill="white" id="nicotubepath1"/>`
     let unavailableIcon = `<path d="m0 0v342h120.148438v112.054688l181.253906-112.054688h210.597656v-342zm482 312h-189.121094l-142.730468 88.238281v-88.238281h-120.148438v-282h452zm0 0" fill="white" id="nicotubepath2" style="visibility:hidden;"/><path d="m151.003906 121.160156h209.988282v30h-209.988282zm0 0" fill="white" id="nicotubepath3" style="visibility:hidden;"/><path d="m151.003906 183h209.988282v30h-209.988282zm0 0" fill="white" id="nicotubepath4" style="visibility:hidden;"/>`
-    let commentToggleButton = `<button class="ytp-button" aria-label="NicoTibe" title="NicoTibe" show="true" id="nicotubeswitch"><svg height="100%" viewBox="-128 -157 768 768" width="100%">${availableIcon}${unavailableIcon}</svg></button>`
+    let commentToggleButton = `<button class="ytp-button" show="true" id="nicotubeswitch"><svg height="100%" viewBox="-128 -157 768 768" width="100%">${availableIcon}${unavailableIcon}</svg></button>`
 
     Object.defineProperty(String.prototype, 'hashCode', {
         value: function () {
@@ -363,10 +371,12 @@
             let context = cvs.getContext('2d');
             context.font = `${config.isBold ? 'bold' : ''} ${commentCanvas.height * config.fontSize}pt '${config.fontFamily}'`;
             context.textBaseline = 'top';
-            if (comment.type == 0 || comment.type == 2 || !config.changeColorOfMember) {
+            if (comment.type == 0 || comment.type == 2 || (comment.type == 1 && !config.changeColorOfMember) || (comment.type == 5 && !config.changeColorOfModerator)) {
                 context.fillStyle = config.fontColor;
             } else if (comment.type == 1) {
                 context.fillStyle = config.memberFontColor;
+            } else if (comment.type == 5) {
+                context.fillStyle = config.moderatorFontColor;
             }
             context.lineWidth = commentCanvas.height * config.fontSize * config.borderWidth;
             context.strokeStyle = config.borderColor;
@@ -449,6 +459,12 @@
                             })) {
                                 return
                             }
+                            if (parsedComment.type == 4) {
+                                return
+                            } else if (parsedComment.type == 3) {
+                                config.welcomeNewMember && welcomeNewMember(parsedComment);
+                                return
+                            }
                             let commentSize = calcCommentSize(parsedComment);
                             let commentWidth = commentSize[0];
                             let fullMoveWidth = $(commentCanvas).width() + commentWidth;
@@ -519,7 +535,7 @@
                             loadedCount += 1;
                             if (loadedCount == toBeLoaded) {
                                 newImages.forEach((image) => {
-                                    context.drawImage(image, Math.floor(image.cX), comment.height * 0.2, seps.width, seps.width);
+                                    context.drawImage(image, Math.floor(image.cX), comment.height * 0.1, seps.width, seps.width);
                                 })
                             }
                         }
@@ -577,9 +593,9 @@
                     obj.text = data;
                     break;
                 case 1: // img
-                    elem = $(data);
-                    obj.src = elem.attr('src');
-                    obj.text = elem.attr('alt');
+                    elem = $(data).get(0);
+                    obj.src = elem.src;
+                    obj.text = elem.alt;
                     obj.isPureEmoji = obj.text.length == 1
                     break;
             }
@@ -593,18 +609,26 @@
             //     0: normal
             //     1: member
             //     2: super chat
-            //     3: to be ignored
+            //     3: member subscribe
+            //     4: youtube engage
+            //     5: moderator
 
             let obj = new Object();
             obj.parsed = new Array();
             obj.id = comment.id;
 
-            if ($(comment.querySelector('#card')).hasClass('yt-live-chat-membership-item-renderer') || $(comment.querySelector('#card')).hasClass('yt-live-chat-viewer-engagement-message-renderer')) {
-                // wellcome banner or youtube banner
+            if ($(comment.querySelector('#card')).hasClass('yt-live-chat-membership-item-renderer')) {
+                obj.type = 3;
+                obj.author = $(comment.querySelector('#author-name')).text().trim();
+                obj.parsed = [stateObj(0, obj.author)]
+                return obj;
+            } else if ($(comment.querySelector('#card')).hasClass('yt-live-chat-viewer-engagement-message-renderer')) {
                 obj.type = 3;
                 return obj;
             } else if ($(comment.querySelector('#author-name')).hasClass('member')) {
                 obj.type = 1;
+            } else if ($(comment.querySelector('#author-name')).hasClass('moderator')) {
+                obj.type = 5;
             } else if ($(comment.querySelector('#card')).hasClass('yt-live-chat-paid-message-renderer')) {
                 obj.type = 2;
                 obj.color = $(comment).css('--yt-live-chat-paid-message-primary-color')
@@ -612,6 +636,7 @@
             } else {
                 obj.type = 0;
             }
+            obj.author = $(comment.querySelector('#author-name')).text().trim();
 
             let userName = $(document.getElementById('chatframe').contentDocument.querySelector('#input-panel').querySelector('#author-name')).text().trim()
 
@@ -622,7 +647,7 @@
                 obj.from = $(comment.querySelector('#img')).attr('src').split('/')[userIdIndexOfImageSrc];
             }
 
-            if (obj.type == 0 || obj.type == 1) {
+            if (obj.type == 0 || obj.type == 1 || obj.type == 5) {
                 let timestamp = $(comment.querySelector('#timestamp')).text().split(':')
                 obj.postTIme = (timestamp.length == 2) ? timestamp[0] * 60 + timestamp[1] * 1 : timestamp[0] * 3600 + timestamp[1] * 60 + timestamp[2] * 1;
                 comment = comment.querySelector(messageFieldSelector).innerHTML;
@@ -636,15 +661,15 @@
 
             let imagetagSeparator = /(<img.+?>)/g;
             let separated = comment.split(imagetagSeparator);
-            separated.filter(n => n);
+            separated = separated.filter(n => n);
             separated.forEach((sep) => {
                 // type:
                 //     0: str
                 //     1: image
-                if (imagetagSeparator.test(sep)) {
+                if (sep.startsWith('<img')) {
                     obj.parsed.push(stateObj(1, sep))
                 } else {
-                    obj.parsed.push(stateObj(0, sep))
+                    obj.parsed.push(stateObj(0, htmlDecode((sep))))
                 }
             });
             obj.hash = obj.parsed.map((com) => {
@@ -722,6 +747,15 @@
             }
         }
 
+        let newComers = [];
+        const welcomeNewMember = (comment) => {
+            newComers.push([performance.now(), comment.text])
+        }
+
+        const drawWelcome = () => {
+
+        }
+
         // update
         const update = () => {
             if ((!currentPlayState || !nicoTubeOn) && !resized) {
@@ -736,6 +770,7 @@
                     let x = commentCanvas.width - (commentCanvas.width + commentWidth) * ((currentTick() - comment.timestamp) / (config.commentSpeed));
                     let y = index * commentCanvas.height * config.fontSize * (config.commentMargin + 1);
                     drawComment(comment, x, y);
+                    drawWelcome();
                 })
             }
             requestAnimationFrame(update);
