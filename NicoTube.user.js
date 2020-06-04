@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            NicoTube
 // @namespace       NicoTube
-// @version         0.0.11
+// @version         0.0.12
 // @description     Youtubeのライブチャットをniconicoの様に描画します
 // @author          @nagataaaas
 // @name:en         NicoTube
@@ -40,7 +40,22 @@
     let commentContext;
     let video;
 
+    let contextMenuCanvas;
+    let settingButton;
+    let isMouseOn;
+    let hoverMutation;
+    let nicoTubeContextMenu;
+    let commentAddMutation;
+
+    // intervals
+    let expireInterval;
     let waitReadyInterval;
+    let chatFieldWait;
+
+    // current tick calculator
+    let currentTickFrame = 0;
+    let stopped = null;
+    let stoppedTime = 0.0;
 
     // id of each elements
     let nicotubeContextMenuWrapperID = 'nicotubeContextMenuWrapper';
@@ -168,6 +183,9 @@
     const getChatField = () => {
         return document.getElementById('chatframe') && document.getElementById('chatframe').contentDocument.querySelector('#items.style-scope.yt-live-chat-item-list-renderer')
     }
+    const getInputField = () => {
+        return document.getElementById('chatframe') && document.getElementById('chatframe').contentDocument.querySelector('#input-panel')
+    }
     const getPlayer = () => {
         return document.getElementById('movie_player')
     }
@@ -198,25 +216,8 @@
     let hrefHist = location.href;
     const URLChangeObserver = new MutationObserver(function (mutations) {
         if (hrefHist !== location.href) {
-            hrefHist = location.href
-            // stop finding chat box and disconnect all mutations
-            clearInterval(waitReadyInterval)
-            globalMutations.comment && globalMutations.comment.disconnect()
-            globalMutations.hover && globalMutations.hover.disconnect()
-            globalMutations.contextMenu && globalMutations.contextMenu.disconnect()
-
-            // remove all element created by nicoTube
-            getNicoTubeSwitch() && getNicoTubeSwitch().remove();
-            getChatCanvas() && getChatCanvas().remove();
-            getContextMenuWrapper() && getContextMenuWrapper().remove();
-
-            // clear all chat element
-            AllCommentLanes && AllCommentLanes.forEach((commentLane) => {
-                commentLane.forEach((comment) => {
-                    comment.canvas.remove();
-                    commentLane.shift();
-                });
-            });
+            hrefHist = location.href;
+            nicoTubeFinalize();
             waitReady();
         }
     })
@@ -233,7 +234,7 @@
             }
             if (getPlayer() && getChatField()) {
                 clearInterval(waitReadyInterval);
-                nicoChat();
+                nicoTubeInit();
             }
         }, 1000);
     }
@@ -244,34 +245,95 @@
     })
 
 
-    const nicoChat = () => {
+    const nicoTubeInit = () => {
         // setting
-        config = getVars();
-        player = getPlayer();
-        chatField = getChatField()
-        nicoTubeOn = true;
-        needToRedraw = false;
-        currentPlayState = 1;
+        setTimeout(() => {
+            config = getVars();
+            player = getPlayer();
+            chatField = getChatField();
+            nicoTubeOn = true;
+            needToRedraw = false;
+            currentPlayState = 1;
+        })
 
-        // add nicoTube switch
-        toolBarRight = getRightToolBar();
-        toolBarRight.insertAdjacentHTML('afterbegin', nicoTubeToggleSwitch)
-        nicoTubeSwitch = getNicoTubeSwitch();
+        console.log('1')
 
-        // comment Canvas
-        player.insertAdjacentHTML('afterbegin', canvasHtml);
-        commentCanvas = getChatCanvas();
-        commentContext = commentCanvas.getContext('2d');
+        setTimeout(() => {
+            // add nicoTube switch
+            toolBarRight = getRightToolBar();
+            toolBarRight.insertAdjacentHTML('afterbegin', nicoTubeToggleSwitch);
+            nicoTubeSwitch = getNicoTubeSwitch();
+        })
+        console.log('2')
 
-        // player settings
-        video = getVideo();
+        setTimeout(() => {
+            // comment Canvas
+            player.insertAdjacentHTML('afterbegin', canvasHtml);
+            commentCanvas = getChatCanvas();
+            commentContext = commentCanvas.getContext('2d');
+        })
+        console.log('3')
 
-        // positions
-        player.style.position = 'relative';
-        commentCanvas.style.position = 'absolute';
-        video.style.position = 'absolute';
+        setTimeout(() => {
+            // player settings
+            video = getVideo();
+            // positions
+            player.style.position = 'relative';
+            commentCanvas.style.position = 'absolute';
+            video.style.position = 'absolute';
+        })
+        console.log('4')
 
-        // on off switch
+        setTimeout(() => {
+            setNicoTubeSwitch();
+            setCommentCanvas();
+            mainCanvasResize();
+            setResizeObserve();
+        })
+        console.log('5')
+
+        setTimeout(() => {
+            AllCommentLanes = commentInit();
+
+            setCommentObserve();
+            setExpireInterval();
+        })
+        console.log('6')
+
+        setTimeout(() => {
+            update();
+        })
+
+    }
+
+    const nicoTubeFinalize = () => {
+        // stop finding chat box and disconnect all mutations
+        clearInterval(waitReadyInterval)
+        globalMutations.comment && globalMutations.comment.disconnect()
+        globalMutations.hover && globalMutations.hover.disconnect()
+        globalMutations.contextMenu && globalMutations.contextMenu.disconnect()
+
+        // remove all element created by nicoTube
+        getNicoTubeSwitch() && getNicoTubeSwitch().remove();
+        getChatCanvas() && getChatCanvas().remove();
+        getContextMenuWrapper() && getContextMenuWrapper().remove();
+
+        // remove interval
+        expireInterval && clearInterval(expireInterval);
+        waitReadyInterval && clearInterval(waitReadyInterval);
+        chatFieldWait && clearInterval(chatFieldWait);
+
+        // clear all chat element
+        AllCommentLanes && AllCommentLanes.forEach((commentLane) => {
+            commentLane.forEach((comment) => {
+                comment.canvas.remove();
+                commentLane.shift();
+            });
+        });
+    }
+
+    // on off switch
+    const setNicoTubeSwitch = () => {
         nicoTubeSwitch.onclick = () => {
             let currentSwitch = $(nicoTubeSwitch).attr('show') == 'true';
             $(nicoTubeSwitch).attr('show', !currentSwitch)
@@ -284,16 +346,16 @@
         }
 
         // switch mouseover mouseout
-        let isMouseOn = false;
-        let hoverMutation;
+        isMouseOn = false;
 
         const hoverObserver = globalMutations.hover || new MutationObserver((mutations) => {
-            $(getToolNamePop()).css({'display': '', 'opacity': '1.0'})
+            $('#movie_player > div.ytp-tooltip.ytp-bottom').css('display', '')
+            $('#movie_player > div.ytp-tooltip.ytp-bottom').css('opacity', '1.0')
         });
         globalMutations.hover = hoverObserver;
 
         nicoTubeSwitch.onmouseover = () => {
-            let settingButton = document.querySelector('#movie_player > div.ytp-chrome-bottom > div.ytp-chrome-controls > div.ytp-right-controls > button.ytp-button.ytp-settings-button')
+            settingButton = document.querySelector('#movie_player > div.ytp-chrome-bottom > div.ytp-chrome-controls > div.ytp-right-controls > button.ytp-button.ytp-settings-button')
             isMouseOn = true;
             hoverObserver.disconnect();
             if (!getToolNamePop()) {
@@ -317,9 +379,11 @@
             hoverObserver.disconnect();
             $(getToolNamePop()).css({'display': 'none'})
         }
+    }
 
+    const setNicoTubeContextMenu = () => {
         // youtube default contextmenu
-        let nicoTubeContextMenu = createElementFromHTML(nicoTubeContextMenuHTML);
+        nicoTubeContextMenu = createElementFromHTML(nicoTubeContextMenuHTML);
 
 
         const contextMenuCanvasInit = (menuCanvas) => {
@@ -339,7 +403,7 @@
         const contextMenuPopObserver = globalMutations.contextMenu || new MutationObserver((mutations) => {
             mutations[0].target.style.display = 'none';
         });
-        let contextMenuCanvas = getContextMenuCanvas();
+        contextMenuCanvas = getContextMenuCanvas();
         contextMenuCanvasInit(contextMenuCanvas);
         globalMutations.contextMenu = contextMenuPopObserver;
 
@@ -417,63 +481,61 @@
             $(commentCanvas).css('pointer-events', 'none');
             GM_setClipboard(comentToText(rightClickTargetComment));
         });
+    }
 
-        // comment to text to copy
-        const comentToText = (comment) => {
-            return comment.parsed.map((com) => {
-                return com.text
-            }).join('');
-        }
+    // comment to text to copy
+    const comentToText = (comment) => {
+        return comment.parsed.map((com) => {
+            return com.text
+        }).join('');
+    }
 
+    const setCommentCanvas = () => {
         // click canvas after right click comment
         commentCanvas.onclick = () => {
             $(nicoTubeContextMenu).css('display', 'none');
             contextMenuPopObserver.disconnect();
         }
+    }
 
-        // current tick calculator
-        let currentTickFrame = 0;
-        let stopped = null;
-        let stoppedTime = 0.0;
+    const currentTick = () => {
+        return video.currentTime
+    }
 
-        const currentTick = () => {
-            return video.currentTime
+    const createCanvas = (width, height, comment) => {
+        let cvs = document.createElement('canvas');
+        cvs.width = width * 1.2;
+        cvs.height = height * 2;
+        let context = cvs.getContext('2d');
+        context.font = `${config.isBold ? 'bold' : ''} ${calcFontSize()}pt '${config.fontFamily}'`;
+        context.textBaseline = 'top';
+        if (comment.type == 0 || comment.type == 2 || (comment.type == 1 && !config.changeColorOfMember) || (comment.type == 5 && !config.changeColorOfModerator)) {
+            context.fillStyle = config.fontColor;
+        } else if (comment.type == 1) {
+            context.fillStyle = config.memberFontColor;
+        } else if (comment.type == 5) {
+            context.fillStyle = config.moderatorFontColor;
         }
+        context.lineWidth = calcFontSize() * config.borderWidth;
+        context.strokeStyle = config.borderColor;
+        return {canvas: cvs, context: context}
+    }
 
-        const createCanvas = (width, height, comment) => {
-            let cvs = document.createElement('canvas');
-            cvs.width = width * 1.2;
-            cvs.height = height * 2;
-            let context = cvs.getContext('2d');
-            context.font = `${config.isBold ? 'bold' : ''} ${calcFontSize()}pt '${config.fontFamily}'`;
-            context.textBaseline = 'top';
-            if (comment.type == 0 || comment.type == 2 || (comment.type == 1 && !config.changeColorOfMember) || (comment.type == 5 && !config.changeColorOfModerator)) {
-                context.fillStyle = config.fontColor;
-            } else if (comment.type == 1) {
-                context.fillStyle = config.memberFontColor;
-            } else if (comment.type == 5) {
-                context.fillStyle = config.moderatorFontColor;
-            }
-            context.lineWidth = calcFontSize() * config.borderWidth;
-            context.strokeStyle = config.borderColor;
-            return {canvas: cvs, context: context}
-        }
+    // resize canvas handler
+    const mainCanvasResize = () => {
+        commentCanvas.width = player.getBoundingClientRect().width;
+        commentCanvas.height = video.getBoundingClientRect().height;
+        commentCanvas.style.top = video.style.top;
+        commentContext.font = `${config.isBold ? 'bold' : ''} ${calcFontSize()}pt '${config.fontFamily}'`;
+        commentContext.shadowColor = config.fontColor;
+        commentContext.globalAlpha = config.canvasAlpha;
+        commentContext.textBaseline = 'top';
+        commentContext.fillStyle = config.fontColor;
+        commentContext.lineWidth = calcFontSize() * config.borderWidth;
+        commentContext.strokeStyle = config.borderColor;
+    };
 
-        // resize canvas handler
-        const mainCanvasResize = () => {
-            commentCanvas.width = player.getBoundingClientRect().width;
-            commentCanvas.height = video.getBoundingClientRect().height;
-            commentCanvas.style.top = video.style.top;
-            commentContext.font = `${config.isBold ? 'bold' : ''} ${calcFontSize()}pt '${config.fontFamily}'`;
-            commentContext.shadowColor = config.fontColor;
-            commentContext.globalAlpha = config.canvasAlpha;
-            commentContext.textBaseline = 'top';
-            commentContext.fillStyle = config.fontColor;
-            commentContext.lineWidth = calcFontSize() * config.borderWidth;
-            commentContext.strokeStyle = config.borderColor;
-        };
-        mainCanvasResize();
-
+    const setResizeObserve = () => {
         // resize observe
         let whenResized;
         const resizeObserver = new ResizeObserver(entry => {
@@ -483,338 +545,340 @@
         resizeObserver.disconnect();
         resizeObserver.observe(video);
         resizeObserver.observe(player);
+    }
 
-        const resizeHandler = () => {
-            needToRedraw = true;
-            commentCanvas.width = player.getBoundingClientRect().width;
-            commentCanvas.height = video.getBoundingClientRect().height;
-            commentCanvas.style.top = video.style.top;
-            mainCanvasResize();
-            AllCommentLanes.forEach((commentLane) => {
-                commentLane.forEach((comment) => {
-                    comment.redraw();
-                })
+    const resizeHandler = () => {
+        needToRedraw = true;
+        commentCanvas.width = player.getBoundingClientRect().width;
+        commentCanvas.height = video.getBoundingClientRect().height;
+        commentCanvas.style.top = video.style.top;
+        mainCanvasResize();
+        AllCommentLanes.forEach((commentLane) => {
+            commentLane.forEach((comment) => {
+                comment.redraw();
             })
-            let chatFieldWait;
-            commentObserver.disconnect()
-            chatFieldWait = setInterval(() => {
-                chatField = getChatField();
-                if (chatField) {
-                    clearInterval(chatFieldWait);
-                    commentObserver.disconnect();
-                    commentObserver.observe(chatField, {attributes: false, childList: true, characterData: false});
+        })
+        commentObserver.disconnect()
+        chatFieldWait = setInterval(() => {
+            chatField = getChatField();
+            if (chatField) {
+                clearInterval(chatFieldWait);
+                commentObserver.observe(chatField, {attributes: false, childList: true, characterData: false});
+            }
+        }, 100)
+    }
+
+    // comment observe
+    const commentInit = () => {
+        return [...Array(Math.floor(1 / config.fontSize / (1 + config.commentMargin)))].map(x => [])
+    }
+
+    commentAddMutation = false
+
+    const commentObserver = globalMutations.comment || new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            // wait for moment for image appear
+            setTimeout(() => {
+                if (mutation.addedNodes.length > 0) {
+                    Array.from(mutation.addedNodes).forEach((node) => {
+                        let minLine, minMove = 10e30;
+                        let parsedComment = parseComment(node);
+
+                        if (parsedComment.postTime < currentTick() - config.commentSpeed) {
+                            return; // too old to add
+                        }
+
+                        if (config.blockedUsers.some((blockedUser) => { // blocked user
+                            return blockedUser[0] == parsedComment.from
+                        }) || config.blockedComments.some((blockedComment) => { // blocked comment
+                            return blockedComment[0] == parsedComment.hash
+                        })) {
+                            return
+                        }
+
+                        if (parsedComment.type == 4) {
+                            return // youtube engage
+                        } else if (parsedComment.type == 3) {
+                            config.welcomeNewMember && welcomeNewMember(parsedComment);
+                            return // new member banner
+                        }
+
+                        let commentSize = calcCommentSize(parsedComment);
+                        let commentWidth = commentSize.width;
+                        let fullMoveWidth = $(commentCanvas).width() + commentWidth;
+                        let commentCanvasRatio = $(commentCanvas).width() / fullMoveWidth;
+                        let startGetOut = currentTick() + commentCanvasRatio * config.commentSpeed;
+
+                        // this will solve the problem that new many comments will flow into first lane
+                        let addCommentInterval = setInterval(() => {
+                            if (!commentAddMutation) {
+                                clearInterval(addCommentInterval);
+                                commentAddMutation = true;
+                                AllCommentLanes.some((commentLane) => {
+                                    let lastCommentShowComplete = commentLane.length == 0 || config.commentSpeed / (commentCanvas.width + commentLane[commentLane.length - 1].width) * commentLane[commentLane.length - 1].width + commentLane[commentLane.length - 1].timestamp
+                                    if (commentLane.length == 0 || (commentLane[commentLane.length - 1].expired < startGetOut && lastCommentShowComplete < currentTick())) {
+                                        parsedComment.laneOffset = 0;
+                                        commentLane.push(commentObj(parsedComment, currentTick(), currentTick() + config.commentSpeed, commentSize));
+                                        return true;
+                                    }
+                                    if (minMove > commentLane[commentLane.length - 1].expired) {
+                                        minMove = commentLane[commentLane.length - 1].expired;
+                                        parsedComment.laneOffset = 0.5;
+                                        minLine = commentLane;
+                                    }
+                                }) || (() => {
+                                    minLine.push(commentObj(parsedComment, currentTick(), currentTick() + config.commentSpeed, commentSize));
+                                    return true
+                                })();
+                                commentAddMutation = false;
+                            }
+                        }, getRandomInt(1, 5))
+                    })
                 }
-            }, 100)
-        }
-
-        // comment observe
-        const commentInit = () => {
-            return [...Array(Math.floor(1 / config.fontSize / (1 + config.commentMargin)))].map(x => [])
-        }
-        AllCommentLanes = commentInit();
-
-        let commentAddMutation = false
-
-        const commentObserver = globalMutations.comment || new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                // wait for moment for image appear
-                setTimeout(() => {
-                    if (mutation.addedNodes.length > 0) {
-                        Array.from(mutation.addedNodes).forEach((node) => {
-                            let minLine, minMove = 10e30;
-                            let parsedComment = parseComment(node);
-
-                            if (parsedComment.postTime < currentTick() - config.commentSpeed) {
-                                return; // too old to add
-                            }
-
-                            if (config.blockedUsers.some((blockedUser) => { // blocked user
-                                return blockedUser[0] == parsedComment.from
-                            }) || config.blockedComments.some((blockedComment) => { // blocked comment
-                                return blockedComment[0] == parsedComment.hash
-                            })) {
-                                return
-                            }
-
-                            if (parsedComment.type == 4) {
-                                return // youtube engage
-                            } else if (parsedComment.type == 3) {
-                                config.welcomeNewMember && welcomeNewMember(parsedComment);
-                                return // new member banner
-                            }
-
-                            let commentSize = calcCommentSize(parsedComment);
-                            let commentWidth = commentSize.width;
-                            let fullMoveWidth = $(commentCanvas).width() + commentWidth;
-                            let commentCanvasRatio = $(commentCanvas).width() / fullMoveWidth;
-                            let startGetOut = currentTick() + commentCanvasRatio * config.commentSpeed;
-
-                            // this will solve the problem that new many comments will flow into first lane
-                            let addCommentInterval = setInterval(() => {
-                                if (!commentAddMutation) {
-                                    clearInterval(addCommentInterval);
-                                    commentAddMutation = true;
-                                    AllCommentLanes.some((commentLane) => {
-                                        let lastCommentShowComplete = commentLane.length == 0 || config.commentSpeed / (commentCanvas.width + commentLane[commentLane.length - 1].width) * commentLane[commentLane.length - 1].width + commentLane[commentLane.length - 1].timestamp
-                                        if (commentLane.length == 0 || (commentLane[commentLane.length - 1].expired < startGetOut && lastCommentShowComplete < currentTick())) {
-                                            parsedComment.laneOffset = 0;
-                                            commentLane.push(commentObj(parsedComment, currentTick(), currentTick() + config.commentSpeed, commentSize));
-                                            return true;
-                                        }
-                                        if (minMove > commentLane[commentLane.length - 1].expired) {
-                                            minMove = commentLane[commentLane.length - 1].expired;
-                                            parsedComment.laneOffset = 0.5;
-                                            minLine = commentLane;
-                                        }
-                                    }) || (() => {
-                                        minLine.push(commentObj(parsedComment, currentTick(), currentTick() + config.commentSpeed, commentSize));
-                                        return true
-                                    })();
-                                    commentAddMutation = false;
-                                }
-                            }, getRandomInt(1, 5))
-                        })
-                    }
-                }, 200)
-            });
+            }, 200)
         });
+    });
 
+    const setCommentObserve = () => {
         globalMutations.comment = commentObserver;
         commentObserver.disconnect();
         commentObserver.observe(chatField, {attributes: false, childList: true, characterData: false});
+    }
 
 
-        // render to offscreen canvas
-        const drawCommentOffScreen = (canvas, context, comment) => {
-            let currentX = 0;
-            let imageSrc, newImage;
-            let loadedCount = 0;
-            let toBeLoaded = 0;
-            let newImages = [];
-            if (comment.type == 2) {
-                let wholeX = comment.parsed.map((seps) => {
-                    switch (seps.type) {
-                        case 0:
-                            return seps.width;
-                        case 1:
-                            return seps.width
-                    }
-                }).reduce((p, x) => p + x, 0.0);
-                let beforeFillStyle = context.fillStyle;
-                let beforeStrokeStyle = context.strokeStyle;
-                context.fillStyle = comment.BackGroundColor;
-                config.showSuperChatBackground && context.fillRect(0, 0, wholeX + comment.height * 0.2, comment.height * 1.4);
-                context.strokeStyle = comment.strokeColor;
-                config.showSuperChatStroke && context.strokeRect(0, 0, wholeX + comment.height * 0.2, comment.height * 1.4);
-                context.fillStyle = beforeFillStyle;
-                context.strokeStyle = beforeStrokeStyle;
-            }
-            comment.parsed.forEach((seps) => {
+    // render to offscreen canvas
+    const drawCommentOffScreen = (canvas, context, comment) => {
+        let currentX = 0;
+        let imageSrc, newImage;
+        let loadedCount = 0;
+        let toBeLoaded = 0;
+        let newImages = [];
+        if (comment.type == 2) {
+            let wholeX = comment.parsed.map((seps) => {
                 switch (seps.type) {
                     case 0:
-                        context.strokeText(seps.text, Math.floor(currentX), comment.height * 0.2);
-                        context.fillText(seps.text, Math.floor(currentX), comment.height * 0.2);
-                        currentX += seps.width;
-                        break
+                        return seps.width;
                     case 1:
-                        newImage = new Image();
-                        imageSrc = seps.src;
-                        toBeLoaded += 1;
-                        newImage.onload = () => {
-                            loadedCount += 1;
-                            if (loadedCount == toBeLoaded) {
-                                newImages.forEach((image) => {
-                                    context.drawImage(image, Math.floor(image.cX), comment.height * 0.2 / 1.2, seps.width / 1.2 * 0.8, seps.width / 1.2 * 0.8);
-                                })
-                            }
+                        return seps.width
+                }
+            }).reduce((p, x) => p + x, 0.0);
+            let beforeFillStyle = context.fillStyle;
+            let beforeStrokeStyle = context.strokeStyle;
+            context.fillStyle = comment.BackGroundColor;
+            config.showSuperChatBackground && context.fillRect(0, 0, wholeX + comment.height * 0.2, comment.height * 1.4);
+            context.strokeStyle = comment.strokeColor;
+            config.showSuperChatStroke && context.strokeRect(0, 0, wholeX + comment.height * 0.2, comment.height * 1.4);
+            context.fillStyle = beforeFillStyle;
+            context.strokeStyle = beforeStrokeStyle;
+        }
+        comment.parsed.forEach((seps) => {
+            switch (seps.type) {
+                case 0:
+                    context.strokeText(seps.text, Math.floor(currentX), comment.height * 0.2);
+                    context.fillText(seps.text, Math.floor(currentX), comment.height * 0.2);
+                    currentX += seps.width;
+                    break
+                case 1:
+                    newImage = new Image();
+                    imageSrc = seps.src;
+                    toBeLoaded += 1;
+                    newImage.onload = () => {
+                        loadedCount += 1;
+                        if (loadedCount == toBeLoaded) {
+                            newImages.forEach((image) => {
+                                context.drawImage(image, Math.floor(image.cX), comment.height * 0.2 / 1.2, seps.width / 1.2 * 0.8, seps.width / 1.2 * 0.8);
+                            })
                         }
-                        newImage.src = imageSrc;
-                        newImage.cX = currentX + seps.width * 0.1 / 1.2;
-                        currentX += seps.width;
-                        newImages.push(newImage)
-                        break
-                }
-            })
-            if (comment.from == 'self') {
-                context.strokeStyle = config.userCommentStrokeColor;
-                context.strokeRect(0, 0, currentX, comment.height * 1.4);
+                    }
+                    newImage.src = imageSrc;
+                    newImage.cX = currentX + seps.width * 0.1 / 1.2;
+                    currentX += seps.width;
+                    newImages.push(newImage)
+                    break
             }
+        })
+        if (comment.from == 'self') {
+            context.strokeStyle = config.userCommentStrokeColor;
+            context.strokeRect(0, 0, currentX, comment.height * 1.4);
         }
+    }
 
 
-        // each comment object
-        const commentObj = (parsedComment, timestamp, expired, size) => {
-            let obj = {
-                laneOffset: parsedComment.laneOffset,
-                parsed: parsedComment.parsed,
-                id: parsedComment.id,
-                type: parsedComment.type,
-                author: parsedComment.author,
-                from: parsedComment.from,
-                BackGroundColor: parsedComment.BackGroundColor,
-                strokeColor: parsedComment.strokeColor,
-                postTime: parsedComment.postTime,
-                purchaseAmount: parsedComment.purchaseAmount,
-                hash: parsedComment.hash,
-                timestamp: timestamp,
-                expired: expired,
-                width: size.width,
-                height: size.height
+    // each comment object
+    const commentObj = (parsedComment, timestamp, expired, size) => {
+        let obj = {
+            laneOffset: parsedComment.laneOffset,
+            parsed: parsedComment.parsed,
+            id: parsedComment.id,
+            type: parsedComment.type,
+            author: parsedComment.author,
+            from: parsedComment.from,
+            BackGroundColor: parsedComment.BackGroundColor,
+            strokeColor: parsedComment.strokeColor,
+            postTime: parsedComment.postTime,
+            purchaseAmount: parsedComment.purchaseAmount,
+            hash: parsedComment.hash,
+            timestamp: timestamp,
+            expired: expired,
+            width: size.width,
+            height: size.height
+        }
+        let canvasCtx = createCanvas(obj.width, obj.height, parsedComment);
+        obj.canvas = canvasCtx.canvas
+        obj.ctx = canvasCtx.context;
+
+        obj.redraw = () => {
+            let size = calcCommentSize(obj)
+            obj.width = size.width;
+            obj.height = size.height;
+            obj.canvas.width = obj.width * 1.2;
+            obj.canvas.height = obj.height * 2;
+            obj.ctx.font = `${config.isBold ? 'bold' : ''} ${calcFontSize()}pt '${config.fontFamily}'`;
+            obj.ctx.textBaseline = 'top';
+            if (obj.type == 0 || obj.type == 2 || (obj.type == 1 && !config.changeColorOfMember) || (obj.type == 5 && !config.changeColorOfModerator)) {
+                obj.ctx.fillStyle = config.fontColor;
+            } else if (obj.type == 1) {
+                obj.ctx.fillStyle = config.memberFontColor;
+            } else if (obj.type == 5) {
+                obj.ctx.fillStyle = config.moderatorFontColor;
             }
-            let canvasCtx = createCanvas(obj.width, obj.height, parsedComment);
-            obj.canvas = canvasCtx.canvas
-            obj.ctx = canvasCtx.context;
-
-            obj.redraw = () => {
-                let size = calcCommentSize(obj)
-                obj.width = size.width;
-                obj.height = size.height;
-                obj.canvas.width = obj.width * 1.2;
-                obj.canvas.height = obj.height * 2;
-                obj.ctx.font = `${config.isBold ? 'bold' : ''} ${calcFontSize()}pt '${config.fontFamily}'`;
-                obj.ctx.textBaseline = 'top';
-                if (obj.type == 0 || obj.type == 2 || (obj.type == 1 && !config.changeColorOfMember) || (obj.type == 5 && !config.changeColorOfModerator)) {
-                    obj.ctx.fillStyle = config.fontColor;
-                } else if (obj.type == 1) {
-                    obj.ctx.fillStyle = config.memberFontColor;
-                } else if (obj.type == 5) {
-                    obj.ctx.fillStyle = config.moderatorFontColor;
-                }
-                obj.ctx.lineWidth = calcFontSize() * config.borderWidth;
-                obj.ctx.strokeStyle = config.borderColor;
-                drawCommentOffScreen(obj.canvas, obj.ctx, obj);
-            }
-
+            obj.ctx.lineWidth = calcFontSize() * config.borderWidth;
+            obj.ctx.strokeStyle = config.borderColor;
             drawCommentOffScreen(obj.canvas, obj.ctx, obj);
-            return obj
-        };
-
-        // each statement object
-        const stateObj = (type, data) => {
-            let obj = {type: type};
-            let elem;
-            switch (type) {
-                case 0: // str
-                    obj.text = data;
-                    break;
-                case 1: // img
-                    elem = $(data).get(0);
-                    obj.src = elem.src;
-                    obj.text = elem.alt;
-                    obj.isPureEmoji = obj.text.length == 1
-                    break;
-            }
-            return obj
         }
 
-        // comment parse
-        const parseComment = (comment) => {
-            let userIdIndexOfImageSrc = 6;
-            // type:
-            //     0: normal
-            //     1: member
-            //     2: super chat
-            //     3: member subscribe
-            //     4: youtube engage
-            //     5: moderator
+        drawCommentOffScreen(obj.canvas, obj.ctx, obj);
+        return obj
+    };
 
-            let obj = new Object();
-            let author = $(comment.querySelector('#author-name'));
-            let card = $(comment.querySelector('#card'));
-            let timestamp = $(comment.querySelector('#timestamp'));
-            obj.parsed = new Array();
-            obj.id = comment.id;
+    // each statement object
+    const stateObj = (type, data) => {
+        let obj = {type: type};
+        let elem;
+        switch (type) {
+            case 0: // str
+                obj.text = data;
+                break;
+            case 1: // img
+                elem = $(data).get(0);
+                obj.src = elem.src;
+                obj.text = elem.alt;
+                obj.isPureEmoji = obj.text.length == 1
+                break;
+        }
+        return obj
+    }
 
-            if (card.hasClass('yt-live-chat-membership-item-renderer')) {
-                obj.type = 3;
-                obj.author = author.text().trim();
-                obj.parsed = [stateObj(0, obj.author)]
-                return obj;
-            } else if (card.hasClass('yt-live-chat-viewer-engagement-message-renderer')) {
-                obj.type = 4;
-                return obj;
-            } else if (author.hasClass('member')) {
-                obj.type = 1;
-            } else if (author.hasClass('moderator')) {
-                obj.type = 5;
-            } else if (card.hasClass('yt-live-chat-paid-message-renderer')) {
-                obj.type = 2;
-                obj.BackGroundColor = $(comment).css('--yt-live-chat-paid-message-primary-color')
-                obj.strokeColor = $(comment).css('--yt-live-chat-paid-message-secondary-color')
-            } else {
-                obj.type = 0;
-            }
+    // comment parse
+    const parseComment = (comment) => {
+        let userIdIndexOfImageSrc = 6;
+        // type:
+        //     0: normal
+        //     1: member
+        //     2: super chat
+        //     3: member subscribe
+        //     4: youtube engage
+        //     5: moderator
+
+        let obj = new Object();
+        let author = $(comment.querySelector('#author-name'));
+        let card = $(comment.querySelector('#card'));
+        let timestamp = $(comment.querySelector('#timestamp'));
+        obj.parsed = new Array();
+        obj.id = comment.id;
+
+        if (card.hasClass('yt-live-chat-membership-item-renderer')) {
+            obj.type = 3;
             obj.author = author.text().trim();
+            obj.parsed = [stateObj(0, obj.author)]
+            return obj;
+        } else if (card.hasClass('yt-live-chat-viewer-engagement-message-renderer')) {
+            obj.type = 4;
+            return obj;
+        } else if (author.hasClass('member')) {
+            obj.type = 1;
+        } else if (author.hasClass('moderator')) {
+            obj.type = 5;
+        } else if (card.hasClass('yt-live-chat-paid-message-renderer')) {
+            obj.type = 2;
+            obj.BackGroundColor = $(comment).css('--yt-live-chat-paid-message-primary-color')
+            obj.strokeColor = $(comment).css('--yt-live-chat-paid-message-secondary-color')
+        } else {
+            obj.type = 0;
+        }
+        obj.author = author.text().trim();
 
-            let userName = $(document.getElementById('chatframe').contentDocument.querySelector('#input-panel').querySelector('#author-name')).text().trim()
+        let userName = !getInputField().querySelector('#author-name') || getInputField().querySelector('#author-name').text().trim()
+        userName = userName === true ? '' : userName
 
-            if (author.text().trim() == userName ||
-                author.text().trim() == `"${userName}"`) {
-                obj.from = 'self';
-            } else {
-                obj.from = $(comment.querySelector('#img')).attr('src').split('/')[userIdIndexOfImageSrc];
-            }
-
-            if (obj.type == 0 || obj.type == 1 || obj.type == 5) {
-                timestamp = timestamp.text().split(':')
-                obj.postTime = (timestamp.length == 2) ? timestamp[0] * 60 + timestamp[1] * 1 : timestamp[0] * 3600 + timestamp[1] * 60 + timestamp[2] * 1;
-                comment = comment.querySelector(messageFieldSelector).innerHTML;
-            } else if (obj.type == 2) {
-                timestamp = timestamp.text().split(':')
-                obj.postTime = (timestamp.length == 2) ? timestamp[0] * 60 + timestamp[1] * 1 : timestamp[0] * 3600 + timestamp[1] * 60 + timestamp[2] * 1;
-                obj.purchaseAmount = $(comment.querySelector('#purchase-amount')).text()
-                config.showSuperChatAmount && obj.parsed.push(stateObj(0, ' ' + obj.purchaseAmount + ' '));
-                comment = comment.querySelector(messageFieldSelector).innerHTML;
-            }
-
-            let imagetagSeparator = /(<img.+?>)/g;
-            let separated = comment.split(imagetagSeparator);
-            separated = separated.filter(n => n);
-            separated.forEach((sep) => {
-                // type:
-                //     0: str
-                //     1: image
-                if (sep.startsWith('<img')) {
-                    obj.parsed.push(stateObj(1, sep))
-                } else {
-                    obj.parsed.push(stateObj(0, htmlDecode((sep))))
-                }
-            });
-            obj.hash = comentToText(obj).hashCode();
-            return obj
-        };
-
-        const calcCommentSize = (comment) => {
-            let width = 0.0;
-            let height = 0.0;
-            let fullwidth = commentContext.measureText('あ').width;
-            let currentWidth;
-            let metrics;
-            let texts = [];
-            comment.parsed.forEach((state) => {
-                switch (state.type) {
-                    case 0: // str
-                        metrics = commentContext.measureText(state.text);
-                        currentWidth = metrics.width;
-                        texts.push(state.text)
-                        width += currentWidth;
-                        state.width = currentWidth;
-                        break;
-                    case 1: // emoji
-                        width += fullwidth * 1.2;
-                        height = Math.floor(fullwidth);
-                        state.width = fullwidth * 1.2;
-                        break
-                }
-            });
-            metrics = commentContext.measureText(texts.join(''));
-            comment.height = Math.max(metrics.actualBoundingBoxDescent - metrics.actualBoundingBoxAscent, height);
-            return {width: width, height: comment.height}
+        if (author.text().trim() == userName ||
+            author.text().trim() == `"${userName}"`) {
+            obj.from = 'self';
+        } else {
+            obj.from = $(comment.querySelector('#img')).attr('src').split('/')[userIdIndexOfImageSrc];
         }
 
+        if (obj.type == 0 || obj.type == 1 || obj.type == 5) {
+            timestamp = timestamp.text().split(':')
+            obj.postTime = (timestamp.length == 2) ? timestamp[0] * 60 + timestamp[1] * 1 : timestamp[0] * 3600 + timestamp[1] * 60 + timestamp[2] * 1;
+            comment = comment.querySelector(messageFieldSelector).innerHTML;
+        } else if (obj.type == 2) {
+            timestamp = timestamp.text().split(':')
+            obj.postTime = (timestamp.length == 2) ? timestamp[0] * 60 + timestamp[1] * 1 : timestamp[0] * 3600 + timestamp[1] * 60 + timestamp[2] * 1;
+            obj.purchaseAmount = $(comment.querySelector('#purchase-amount')).text()
+            config.showSuperChatAmount && obj.parsed.push(stateObj(0, ' ' + obj.purchaseAmount + ' '));
+            comment = comment.querySelector(messageFieldSelector).innerHTML;
+        }
 
-        // comment expire
-        let expireInterval = setInterval(() => {
+        let imagetagSeparator = /(<img.+?>)/g;
+        let separated = comment.split(imagetagSeparator);
+        separated = separated.filter(n => n);
+        separated.forEach((sep) => {
+            // type:
+            //     0: str
+            //     1: image
+            if (sep.startsWith('<img')) {
+                obj.parsed.push(stateObj(1, sep))
+            } else {
+                obj.parsed.push(stateObj(0, htmlDecode((sep))))
+            }
+        });
+        obj.hash = comentToText(obj).hashCode();
+        return obj
+    };
+
+    const calcCommentSize = (comment) => {
+        let width = 0.0;
+        let height = 0.0;
+        let fullwidth = commentContext.measureText('あ').width;
+        let currentWidth;
+        let metrics;
+        let texts = [];
+        comment.parsed.forEach((state) => {
+            switch (state.type) {
+                case 0: // str
+                    metrics = commentContext.measureText(state.text);
+                    currentWidth = metrics.width;
+                    texts.push(state.text)
+                    width += currentWidth;
+                    state.width = currentWidth;
+                    break;
+                case 1: // emoji
+                    width += fullwidth * 1.2;
+                    height = Math.floor(fullwidth);
+                    state.width = fullwidth * 1.2;
+                    break
+            }
+        });
+        metrics = commentContext.measureText(texts.join(''));
+        comment.height = Math.max(metrics.actualBoundingBoxDescent - metrics.actualBoundingBoxAscent, height);
+        return {width: width, height: comment.height}
+    }
+
+
+    // comment expire
+    const setExpireInterval = () => {
+        expireInterval = setInterval(() => {
             AllCommentLanes.forEach((commentLane) => {
                 commentLane.forEach((comment) => {
                     if (comment.expired < currentTick() || comment.timestamp > currentTick()) {
@@ -824,8 +888,10 @@
                 });
             });
         }, 100);
+    }
 
-        // stop-play observe
+    // stop-play observe
+    const setVideoOn = () => {
         const checkVideoIsPaused = () => {
             return !video.paused
         }
@@ -843,97 +909,99 @@
         video.onseeked = () => {
             currentPlayState = checkVideoIsPaused();
         }
+    }
 
-        // draw comment
-        const drawComment = (comment, x, y) => {
-            try {
-                commentContext.drawImage(comment.canvas, x, y + calcFontSize() * (config.commentMargin + 1) * comment.laneOffset);
-            } catch (e) {
-            }
+    // draw comment
+    const drawComment = (comment, x, y) => {
+        try {
+            commentContext.drawImage(comment.canvas, x, y + calcFontSize() * (config.commentMargin + 1) * comment.laneOffset);
+        } catch (e) {
         }
+    }
 
-        let newComers = [];
-        let hands = ['👋', '👋🏻', '👋🏼', '👋🏽', '👋🏾', '👋🏿']
-        const welcomeNewMember = (comment) => {
-            let canvas = createCanvas(calcFontSize() * 3, calcFontSize() * 3, comment);
-            let rotationCanvas = createCanvas(calcFontSize() * 3, calcFontSize() * 3, comment);
-            let timestamp = performance.now();
-            let hand = hands[Math.floor(timestamp % hands.length)];
+    let newComers = [];
+    let hands = ['👋', '👋🏻', '👋🏼', '👋🏽', '👋🏾', '👋🏿']
+    const welcomeNewMember = (comment) => {
+        let canvas = createCanvas(calcFontSize() * 3, calcFontSize() * 3, comment);
+        let rotationCanvas = createCanvas(calcFontSize() * 3, calcFontSize() * 3, comment);
+        let timestamp = performance.now();
+        let hand = hands[Math.floor(timestamp % hands.length)];
 
-            canvas.context.textBaseline = 'bottom';
-            rotationCanvas.context.textAlign = 'bottom';
-            canvas.context.textBaseline = 'right';
-            rotationCanvas.context.textAlign = 'right';
+        canvas.context.textBaseline = 'bottom';
+        rotationCanvas.context.textAlign = 'bottom';
+        canvas.context.textBaseline = 'right';
+        rotationCanvas.context.textAlign = 'right';
 
-            canvas.context.fillText(hand, calcFontSize(), calcFontSize() * 2);
-            newComers.push({
-                timestamp: timestamp, name: comment.author,
-                number: newComers.length, canvas: canvas.canvas, context: canvas.context,
-                rotationCanvas: rotationCanvas.canvas, rotationContext: rotationCanvas.context
-            });
-        }
+        canvas.context.fillText(hand, calcFontSize(), calcFontSize() * 2);
+        newComers.push({
+            timestamp: timestamp, name: comment.author,
+            number: newComers.length, canvas: canvas.canvas, context: canvas.context,
+            rotationCanvas: rotationCanvas.canvas, rotationContext: rotationCanvas.context
+        });
+    }
 
-        let showDuration = 0.7;
-        let animationDuration = 1.0;
-        let disappearDuration = 0.7;
+    let showDuration = 0.7;
+    let animationDuration = 1.0;
+    let disappearDuration = 0.7;
 
-        let showDurationMilli = showDuration * 1000.0;
-        let animationDurationMilli = animationDuration * 1000.0;
-        let disappearDurationMilli = disappearDuration * 1000.0;
+    let showDurationMilli = showDuration * 1000.0;
+    let animationDurationMilli = animationDuration * 1000.0;
+    let disappearDurationMilli = disappearDuration * 1000.0;
 
-        let startToShown = showDurationMilli;
-        let startToAnimated = startToShown + animationDurationMilli;
-        let startToEnd = startToAnimated + disappearDurationMilli;
+    let startToShown = showDurationMilli;
+    let startToAnimated = startToShown + animationDurationMilli;
+    let startToEnd = startToAnimated + disappearDurationMilli;
 
-        const drawWelcome = () => {
-            let currentTime = performance.now();
-            let y = (AllCommentLanes.length - 1) * calcFontSize() * (config.commentMargin + 1)
+    const drawWelcome = () => {
+        let currentTime = performance.now();
+        let y = (AllCommentLanes.length - 1) * calcFontSize() * (config.commentMargin + 1)
 
-            newComers.forEach((animation) => {
-                if (animation.timestamp + startToShown > currentTime) { // showing up
-                    let xStart = -animation.canvas.width;
-                    let xTarget = animation.canvas.width * animation.number / 2;
-                    let x = (xTarget - xStart) / showDurationMilli * (currentTime - animation.timestamp)
-                    commentContext.drawImage(animation.canvas, x + xStart, y);
-                } else if (animation.timestamp + startToAnimated > currentTime) {
-                    const rotateCanvas = (degree) => {
-                        animation.rotationCanvas.width = animation.rotationCanvas.width;
+        newComers.forEach((animation) => {
+            if (animation.timestamp + startToShown > currentTime) { // showing up
+                let xStart = -animation.canvas.width;
+                let xTarget = animation.canvas.width * animation.number / 2;
+                let x = (xTarget - xStart) / showDurationMilli * (currentTime - animation.timestamp)
+                commentContext.drawImage(animation.canvas, x + xStart, y);
+            } else if (animation.timestamp + startToAnimated > currentTime) {
+                const rotateCanvas = (degree) => {
+                    animation.rotationCanvas.width = animation.rotationCanvas.width;
 
-                        animation.rotationContext.save()
+                    animation.rotationContext.save()
 
-                        animation.rotationContext.translate(Math.floor(calcFontSize()) * 3, Math.floor(calcFontSize() * 2));
-                        animation.rotationContext.rotate(degree * Math.PI / 180);
-                        animation.rotationContext.drawImage(animation.canvas, -calcFontSize() * 3, -calcFontSize() * 2)
+                    animation.rotationContext.translate(Math.floor(calcFontSize()) * 3, Math.floor(calcFontSize() * 2));
+                    animation.rotationContext.rotate(degree * Math.PI / 180);
+                    animation.rotationContext.drawImage(animation.canvas, -calcFontSize() * 3, -calcFontSize() * 2)
 
-                        animation.rotationContext.restore()
+                    animation.rotationContext.restore()
 
-                        commentContext.drawImage(animation.rotationCanvas, xTarget, y);
-                    }
-                    let rotations = [0, -10, 12, -10, 9, 0, 0, 0, 0, 0];
-                    let currentLevel = (currentTime - animation.timestamp - startToShown) / animationDuration / 100
-                    let rotationIndex = Math.floor(currentLevel);
-                    let rotationDegree = (rotations[rotationIndex + 1] - rotations[rotationIndex]) * (currentLevel % 1) + rotations[rotationIndex]
-                    let xTarget = animation.canvas.width * animation.number / 2;
-                    rotateCanvas(rotationDegree)
-                } else if (animation.timestamp + startToEnd > currentTime) {
-                    let xTarget = -animation.canvas.width;
-                    let xStart = animation.canvas.width * animation.number / 2;
-                    let x = (xTarget - xStart) / disappearDurationMilli * (currentTime - animation.timestamp - startToAnimated)
-                    commentContext.drawImage(animation.canvas, x + xStart, y);
-                } else {
-                    animation.canvas.remove();
-                    animation.rotationCanvas.remove();
-                    newComers.shift();
+                    commentContext.drawImage(animation.rotationCanvas, xTarget, y);
                 }
-            })
-        }
-
-        // update
-        const update = () => {
-            if ((!currentPlayState || !nicoTubeOn) && !needToRedraw) {
-                requestAnimationFrame(update);
-                return;
+                let rotations = [0, -10, 12, -10, 9, 0, 0, 0, 0, 0];
+                let currentLevel = (currentTime - animation.timestamp - startToShown) / animationDuration / 100
+                let rotationIndex = Math.floor(currentLevel);
+                let rotationDegree = (rotations[rotationIndex + 1] - rotations[rotationIndex]) * (currentLevel % 1) + rotations[rotationIndex]
+                let xTarget = animation.canvas.width * animation.number / 2;
+                rotateCanvas(rotationDegree)
+            } else if (animation.timestamp + startToEnd > currentTime) {
+                let xTarget = -animation.canvas.width;
+                let xStart = animation.canvas.width * animation.number / 2;
+                let x = (xTarget - xStart) / disappearDurationMilli * (currentTime - animation.timestamp - startToAnimated)
+                commentContext.drawImage(animation.canvas, x + xStart, y);
+            } else {
+                animation.canvas.remove();
+                animation.rotationCanvas.remove();
+                newComers.shift();
             }
+        })
+    }
+
+    // update
+    const update = () => {
+        if ((!currentPlayState || !nicoTubeOn) && !needToRedraw) {
+            requestAnimationFrame(update);
+            return;
+        }
+        if (commentContext) {
             needToRedraw = false;
             commentContext.clearRect(0, 0, commentCanvas.width, commentCanvas.height);
             for (const [index, commentLane] of AllCommentLanes.entries()) {
@@ -946,7 +1014,6 @@
                 })
             }
             requestAnimationFrame(update);
-        };
-        update();
-    }
+        }
+    };
 }());
