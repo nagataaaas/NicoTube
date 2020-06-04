@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            NicoTube
 // @namespace       NicoTube
-// @version         0.0.12
+// @version         0.0.13
 // @description     Youtubeのライブチャットをniconicoの様に描画します
 // @author          @nagataaaas
 // @name:en         NicoTube
@@ -175,8 +175,12 @@
         return div.firstChild;
     }
 
+    let fontSizeCache
     const calcFontSize = () => {
-        return commentCanvas.height * config.fontSize
+        if (!fontSizeCache) {
+            fontSizeCache = commentCanvas.height * config.fontSize
+        }
+        return fontSizeCache
     }
 
     // functions to get elements
@@ -256,15 +260,12 @@
             currentPlayState = 1;
         })
 
-        console.log('1')
-
         setTimeout(() => {
             // add nicoTube switch
             toolBarRight = getRightToolBar();
             toolBarRight.insertAdjacentHTML('afterbegin', nicoTubeToggleSwitch);
             nicoTubeSwitch = getNicoTubeSwitch();
         })
-        console.log('2')
 
         setTimeout(() => {
             // comment Canvas
@@ -272,7 +273,6 @@
             commentCanvas = getChatCanvas();
             commentContext = commentCanvas.getContext('2d');
         })
-        console.log('3')
 
         setTimeout(() => {
             // player settings
@@ -282,7 +282,6 @@
             commentCanvas.style.position = 'absolute';
             video.style.position = 'absolute';
         })
-        console.log('4')
 
         setTimeout(() => {
             setNicoTubeSwitch();
@@ -290,7 +289,6 @@
             mainCanvasResize();
             setResizeObserve();
         })
-        console.log('5')
 
         setTimeout(() => {
             AllCommentLanes = commentInit();
@@ -298,7 +296,6 @@
             setCommentObserve();
             setExpireInterval();
         })
-        console.log('6')
 
         setTimeout(() => {
             update();
@@ -548,24 +545,28 @@
     }
 
     const resizeHandler = () => {
+        fontSizeCache = 0;
+        nicoTubeOn = false;
+        commentObserver.disconnect()
         needToRedraw = true;
-        commentCanvas.width = player.getBoundingClientRect().width;
-        commentCanvas.height = video.getBoundingClientRect().height;
-        commentCanvas.style.top = video.style.top;
         mainCanvasResize();
         AllCommentLanes.forEach((commentLane) => {
             commentLane.forEach((comment) => {
-                comment.redraw();
+                setTimeout(() => {
+                    comment.redraw();
+                })
             })
         })
-        commentObserver.disconnect()
         chatFieldWait = setInterval(() => {
             chatField = getChatField();
             if (chatField) {
                 clearInterval(chatFieldWait);
-                commentObserver.observe(chatField, {attributes: false, childList: true, characterData: false});
+                nicoTubeOn = true;
+                setTimeout(() => {
+                    commentObserver.observe(chatField, {attributes: false, childList: true, characterData: false});
+                })
             }
-        }, 100)
+        }, 50)
     }
 
     // comment observe
@@ -808,7 +809,7 @@
         }
         obj.author = author.text().trim();
 
-        let userName = !getInputField().querySelector('#author-name') || getInputField().querySelector('#author-name').text().trim()
+        let userName = !getInputField() || !getInputField().querySelector('#author-name') || getInputField().querySelector('#author-name').text().trim()
         userName = userName === true ? '' : userName
 
         if (author.text().trim() == userName ||
@@ -1004,13 +1005,13 @@
         if (commentContext) {
             needToRedraw = false;
             commentContext.clearRect(0, 0, commentCanvas.width, commentCanvas.height);
+            drawWelcome();
             for (const [index, commentLane] of AllCommentLanes.entries()) {
                 commentLane.forEach((comment) => {
                     let commentWidth = comment.width;
                     let x = commentCanvas.width - (commentCanvas.width + commentWidth) * ((currentTick() - comment.timestamp) / (config.commentSpeed));
                     let y = index * calcFontSize() * (config.commentMargin + 1);
                     drawComment(comment, x, y);
-                    drawWelcome();
                 })
             }
             requestAnimationFrame(update);
