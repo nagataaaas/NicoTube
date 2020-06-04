@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name            NicoTube
 // @namespace       NicoTube
-// @version         0.0.9
+// @version         0.0.10
 // @description     Youtubeのライブチャットをniconicoの様に描画します
 // @author          @nagataaaas
 // @name:en         NicoTube
 // @description:en  Render Youtube live chat on the video just like niconico
-// @match           https://www.youtube.com/watch*
+// @match           https://www.youtube.com/*
 // @require         https://code.jquery.com/jquery-3.3.1.min.js
 // @grant           GM_setValue
 // @grant           GM_getValue
@@ -39,6 +39,8 @@
     let commentCanvas;
     let commentContext;
     let video;
+
+    let waitReadyInterval;
 
     // id of each elements
     let nicotubeContextMenuWrapperID = 'nicotubeContextMenuWrapper';
@@ -192,31 +194,11 @@
     }
 
 
-    // wait live chat box pops up and be ready
-    let waitReadyInterval;
-    const waitReady = () => {
-        let findCount = 1;
-        clearInterval(waitReadyInterval);
-        waitReadyInterval = setInterval(() => {
-            findCount++;
-            if (findCount > 30) {
-                clearInterval(waitReadyInterval);
-            }
-            if (getPlayer() && getChatField()) {
-                clearInterval(waitReadyInterval);
-                nicoChat();
-            }
-        }, 1000);
-    }
-    // and run when blowser is ready
-    $(document).ready(() => {
-        waitReady();
-    })
-
     // observe url change.
     let hrefHist = location.href;
     const URLChangeObserver = new MutationObserver(function (mutations) {
         if (hrefHist !== location.href) {
+            hrefHist = location.href
             // stop finding chat box and disconnect all mutations
             clearInterval(waitReadyInterval)
             globalMutations.comment && globalMutations.comment.disconnect()
@@ -236,11 +218,30 @@
                 });
             });
             waitReady();
-            hrefHist = location.href
         }
     })
     URLChangeObserver.disconnect()
-    URLChangeObserver.observe(document, {childList: true, subtree: true})
+
+    // wait live chat box pops up and be ready
+    const waitReady = () => {
+        let findCount = 1;
+        clearInterval(waitReadyInterval);
+        waitReadyInterval = setInterval(() => {
+            findCount++;
+            if (findCount > 30) {
+                clearInterval(waitReadyInterval);
+            }
+            if (getPlayer() && getChatField()) {
+                clearInterval(waitReadyInterval);
+                nicoChat();
+            }
+        }, 1000);
+    }
+    // and run when blowser is ready
+    $(document).ready(() => {
+        URLChangeObserver.observe(document, {childList: true, subtree: true})
+        waitReady();
+    })
 
 
     const nicoChat = () => {
@@ -571,7 +572,7 @@
                                     })();
                                     commentAddMutation = false;
                                 }
-                            }, getRandomInt(20, 30))
+                            }, getRandomInt(1, 5))
                         })
                     }
                 }, 200)
@@ -864,7 +865,7 @@
             canvas.context.textBaseline = 'right';
             rotationCanvas.context.textAlign = 'right';
 
-            canvas.context.fillText(hand, calcFontSize(), calcFontSize()*2);
+            canvas.context.fillText(hand, calcFontSize(), calcFontSize() * 2);
             newComers.push({
                 timestamp: timestamp, name: comment.author,
                 number: newComers.length, canvas: canvas.canvas, context: canvas.context,
@@ -900,9 +901,9 @@
 
                         animation.rotationContext.save()
 
-                        animation.rotationContext.translate(Math.floor(calcFontSize()) * 3, Math.floor(calcFontSize()*2));
+                        animation.rotationContext.translate(Math.floor(calcFontSize()) * 3, Math.floor(calcFontSize() * 2));
                         animation.rotationContext.rotate(degree * Math.PI / 180);
-                        animation.rotationContext.drawImage(animation.canvas, -calcFontSize() * 3, -calcFontSize()*2)
+                        animation.rotationContext.drawImage(animation.canvas, -calcFontSize() * 3, -calcFontSize() * 2)
 
                         animation.rotationContext.restore()
 
