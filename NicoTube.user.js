@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            NicoTube
 // @namespace       NicoTube
-// @version         0.0.10
+// @version         0.0.11
 // @description     Youtubeのライブチャットをniconicoの様に描画します
 // @author          @nagataaaas
 // @name:en         NicoTube
@@ -651,7 +651,7 @@
                 type: parsedComment.type,
                 author: parsedComment.author,
                 from: parsedComment.from,
-                color: parsedComment.BackGroundColor,
+                BackGroundColor: parsedComment.BackGroundColor,
                 strokeColor: parsedComment.strokeColor,
                 postTime: parsedComment.postTime,
                 purchaseAmount: parsedComment.purchaseAmount,
