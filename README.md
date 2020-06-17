@@ -1,3 +1,3 @@
 # NicoTube
 
-![demo](https://raw.github.com/wiki/delta114514/NicoTube/static/mainSample.gif)
+![demo](https://github.com/delta114514/NicoTube/blob/master/static/mainSample.gif?raw=true)
