@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            NicoTube
 // @namespace       NicoTube
-// @version         0.0.14
+// @version         0.0.15
 // @description     Youtubeのライブチャットをniconicoの様に描画します
 // @author          @nagataaaas
 // @name:en         NicoTube
@@ -20,6 +20,34 @@
 
 (function () {
     'use strict';
+
+    const getVars = () => {
+        return {
+            commentSpeed: GM_getValue('commentSpeed', 5), // from appear to disappear
+            fontFamily: 'Arial', // font of chat
+            userCommentStrokeColor: 'yellow', // color of box of user comment
+            isBold: true, // is comment font bold
+            emojiBorder: true, // whether show border to emoji
+            fontSize: 0.05, // Relative size to height of video
+            commentMargin: 0.7, // Relative size to fontSize
+            fontColor: '#FFFFFF', // color of comment (default to white
+            memberFontColor: '#2cb879', // color of member comment (default to green
+            moderatorFontColor: '#7581b8', // color of moderator comment (default to purple
+            canvasAlpha: 0.5, // alpha of comment
+            borderWidth: 0.1, // Relative size to fontSize
+            borderColor: '#000000', // color of border (default to black
+            blockedUsers: [], // list of list of blocked userid [[userID, comment], [userID, comment], [userID, comment]...]
+            blockedComments: [], // list of list of hash of blocked AllCommentLanes [[hash, actual comment], [hash, actual comment], [hash, actual comment]...],
+            blockedKeyWords: [], // list of blocked keyword [keyword, keyword, keyword...] (word can be regex)
+            showSuperChatAmount: true, // whether show the amount of super chat
+            showSuperChatBackground: true, // whether show the background of super chat
+            showSuperChatStroke: true, // whether show the stroke of super chat
+            changeColorOfMember: true, // whether change the color of member
+            changeColorOfModerator: true, // whether change the color of moderator
+            welcomeNewMember: true // pop welcome animation to new member
+        };
+    };
+
     let AllCommentLanes;
     let globalMutations = {
         comment: null,
@@ -105,32 +133,7 @@
         </div>
 
         </div>
-        </div>`;
-
-    const getVars = () => {
-        return {
-            commentSpeed: GM_getValue('commentSpeed', 5), // from appear to disappear
-            fontFamily: 'Arial', // font of chat
-            userCommentStrokeColor: 'yellow', // color of box of user comment
-            isBold: true, // is comment font bold
-            fontSize: 0.05, // Relative size to height of video
-            commentMargin: 0.7, // Relative size to fontSize
-            fontColor: '#FFFFFF', // color of comment (default to white
-            memberFontColor: '#2cb879', // color of member comment (default to green
-            moderatorFontColor: '#7581b8', // color of moderator comment (default to purple
-            canvasAlpha: 0.5, // alpha of comment
-            borderWidth: 0.1, // Relative size to fontSize
-            borderColor: '#000000', // color of border (default to black
-            blockedUsers: [], // list of list of blocked userid [[userID, comment], [userID, comment], [userID, comment]...]
-            blockedComments: [], // list of list of hash of blocked AllCommentLanes [[hash, actual comment], [hash, actual comment], [hash, actual comment]...],
-            showSuperChatAmount: true, // whether show the amount of super chat
-            showSuperChatBackground: true, // whether show the background of super chat
-            showSuperChatStroke: true, // whether show the stroke of super chat
-            changeColorOfMember: true, // whether change the color of member
-            changeColorOfModerator: true, // whether change the color of moderator
-            welcomeNewMember: true // pop welcome animation to new member
-        };
-    };
+        </div>}`;
 
     // decode escaped html string
     const htmlDecode = (input) => {
@@ -438,9 +441,12 @@
 
                 e.preventDefault();
 
-                $(nicoTubeContextMenu).css({
-                    'top': y, 'left': x, 'display': ''
-                });
+                setTimeout(() => {
+                    $(nicoTubeContextMenu).css({
+                        'top': y, 'left': x, 'display': ''
+                    })
+                }, 50);
+
 
                 contextMenuCanvasDraw(contextMenuCanvas, matchComment.canvas);
 
@@ -453,8 +459,9 @@
             $(nicoTubeContextMenu).css('display', 'none');
             $(commentCanvas).css('pointer-events', 'none');
             config.blockedUsers.push([rightClickTargetComment.from, commentToText(rightClickTargetComment)]);
-            AllCommentLanes[rightClickTargetCommentIndex.lane]
-                .splice(rightClickTargetCommentIndex.index, 1);
+            for (let i = 0; i < AllCommentLanes.length; i++) {
+                AllCommentLanes[i] = AllCommentLanes[i].filter(comment => comment.from !== rightClickTargetComment.from)
+            }
             needToRedraw = true;
         });
 
@@ -462,8 +469,9 @@
             config.blockedComments.push([rightClickTargetComment.hash, commentToText(rightClickTargetComment)]);
             $(nicoTubeContextMenu).css('display', 'none');
             $(commentCanvas).css('pointer-events', 'none');
-            AllCommentLanes[rightClickTargetCommentIndex.lane]
-                .splice(rightClickTargetCommentIndex.index, 1);
+            for (let i = 0; i < AllCommentLanes.length; i++) {
+                AllCommentLanes[i] = AllCommentLanes[i].filter(comment => comment.hash !== rightClickTargetComment.hash)
+            }
             needToRedraw = true;
         });
 
@@ -471,6 +479,10 @@
             $(nicoTubeContextMenu).css('display', 'none');
             $(commentCanvas).css('pointer-events', 'none');
             GM_setClipboard(commentToText(rightClickTargetComment));
+        });
+
+        $(commentCanvas).on('click', () => {
+            $(commentCanvas).css('pointer-events', 'none');
         });
     };
 
@@ -585,6 +597,8 @@
                             return blockedUser[0] == parsedComment.from
                         }) || config.blockedComments.some((blockedComment) => { // blocked comment
                             return blockedComment[0] == parsedComment.hash
+                        }) || config.blockedKeyWords.some((blockedKeyWord) => {
+                            return RegExp(blockedKeyWord).test(commentToText(parsedComment))
                         })) {
                             return
                         }
@@ -679,7 +693,14 @@
                         loadedCount += 1;
                         if (loadedCount === toBeLoaded) {
                             newImages.forEach((image) => {
-                                context.drawImage(image, Math.floor(image.cX), comment.height * 0.2 / 1.2, seps.width / 1.2 * 0.8, seps.width / 1.2 * 0.8);
+                                if (config.emojiBorder) {
+                                    context.save();
+                                    context.filter = `drop-shadow(rgb(0,0, 0) 0px 0px 1px) drop-shadow(rgb(0,0, 0) 0px 0px ${calcFontSize() / 200}px)`.repeat(3);
+                                }
+                                context.drawImage(image, Math.floor(image.cX), comment.height * 0.1 / 1.2, seps.width / 1.2, seps.width / 1.2);
+                                if (config.emojiBorder) {
+                                    context.restore();
+                                }
                             })
                         }
                     };
@@ -692,7 +713,7 @@
         });
         if (comment.from === 'self') {
             context.strokeStyle = config.userCommentStrokeColor;
-            context.strokeRect(0, 0, currentX, comment.height * 1.4);
+            context.strokeRect(0, 0, currentX, comment.height);
         }
     };
 
@@ -979,8 +1000,6 @@
                 let x = (xTarget - xStart) / disappearDurationMilli * (currentTime - animation.timestamp - startToAnimated);
                 commentContext.drawImage(animation.canvas, x + xStart, y);
             } else {
-                animation.canvas.remove();
-                animation.rotationCanvas.remove();
                 newComers.shift();
             }
         })
