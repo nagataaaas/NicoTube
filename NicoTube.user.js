@@ -34,7 +34,7 @@
             memberFontColor: '#2cb879', // color of member comment (default to green
             moderatorFontColor: '#7581b8', // color of moderator comment (default to purple
             canvasAlpha: 0.5, // alpha of comment
-            borderWidth: 0.1, // Relative size to fontSize
+            borderWidth: 0.15, // Relative size to fontSize
             borderColor: '#000000', // color of border (default to black
             blockedUsers: [], // list of list of blocked userid [[userID, comment], [userID, comment], [userID, comment]...]
             blockedComments: [], // list of list of hash of blocked AllCommentLanes [[hash, actual comment], [hash, actual comment], [hash, actual comment]...],
@@ -655,7 +655,7 @@
 
     // render to offscreen canvas
     const drawCommentOffScreen = (canvas, context, comment) => {
-        let currentX = 0;
+        let currentX = calcFontSize() * config.borderWidth * 2;
         let imageSrc, newImage;
         let loadedCount = 0;
         let toBeLoaded = 0;
