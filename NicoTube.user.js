@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            NicoTube
 // @namespace       NicoTube
-// @version         0.0.15
+// @version         0.0.16
 // @description     Youtubeのライブチャットをniconicoの様に描画します
 // @author          @nagataaaas
 // @name:en         NicoTube
