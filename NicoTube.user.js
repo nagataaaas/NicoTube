@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            NicoTube
 // @namespace       NicoTube
-// @version         0.0.16
+// @version         0.1.0
 // @description     Youtubeのライブチャットをniconicoの様に描画します
 // @author          @nagataaaas
 // @name:en         NicoTube
@@ -23,6 +23,7 @@
 
     const getVars = () => {
         return {
+            resolutionRatio: 1,
             commentSpeed: GM_getValue('commentSpeed', 5), // from appear to disappear
             fontFamily: 'Arial', // font of chat
             userCommentStrokeColor: 'yellow', // color of box of user comment
@@ -124,13 +125,26 @@
 
         <div class="ytp-menuitem" aria-haspopup="false" role="menuitem" tabindex="0" id="commentCopy">
         <div class="ytp-menuitem-icon">
-        <svg height="100%" viewBox="0 0 36 36" width="100%">
-        <path d="M5.85 18.0c0.0-2.56 2.08-4.65 4.65-4.65h6.0V10.5H10.5c-4.14 .0-7.5 3.36-7.5 7.5s3.36 7.5 7.5 7.5h6.0v-2.85H10.5c-2.56 .0-4.65-2.08-4.65-4.65zM12.0 19.5h12.0v-3.0H12.0v3.0zm13.5-9.0h-6.0v2.85h6.0c2.56 .0 4.65 2.08 4.65 4.65s-2.08 4.65-4.65 4.65h-6.0V25.5h6.0c4.14 .0 7.5-3.36 7.5-7.5s-3.36-7.5-7.5-7.5z" fill="#fff"></path>
+        <svg height="100%" viewBox="0 0 488.3 488.3" width="100%" fill="#FFFFFF">
+        <g><g>
+        <path d="M314.25,85.4h-227c-21.3,0-38.6,17.3-38.6,38.6v325.7c0,21.3,17.3,38.6,38.6,38.6h227c21.3,0,38.6-17.3,38.6-38.6V124    C352.75,102.7,335.45,85.4,314.25,85.4z M325.75,449.6c0,6.4-5.2,11.6-11.6,11.6h-227c-6.4,0-11.6-5.2-11.6-11.6V124    c0-6.4,5.2-11.6,11.6-11.6h227c6.4,0,11.6,5.2,11.6,11.6V449.6z"/>
+        <path d="M401.05,0h-227c-21.3,0-38.6,17.3-38.6,38.6c0,7.5,6,13.5,13.5,13.5s13.5-6,13.5-13.5c0-6.4,5.2-11.6,11.6-11.6h227    c6.4,0,11.6,5.2,11.6,11.6v325.7c0,6.4-5.2,11.6-11.6,11.6c-7.5,0-13.5,6-13.5,13.5s6,13.5,13.5,13.5c21.3,0,38.6-17.3,38.6-38.6    V38.6C439.65,17.3,422.35,0,401.05,0z"/>
+        </g></g>
         </svg>
         </div>
         <div class="ytp-menuitem-label">コメントコピー</div>
         <div class="ytp-menuitem-content"></div>
         </div>
+
+        <a href="#" target="_blank" class="ytp-menuitem" aria-haspopup="false" role="menuitem" tabindex="0" id="openURL">
+        <div class="ytp-menuitem-icon">
+        <svg height="100%" viewBox="0 0 36 36" width="100%">
+        <path d="M5.85 18.0c0.0-2.56 2.08-4.65 4.65-4.65h6.0V10.5H10.5c-4.14 .0-7.5 3.36-7.5 7.5s3.36 7.5 7.5 7.5h6.0v-2.85H10.5c-2.56 .0-4.65-2.08-4.65-4.65zM12.0 19.5h12.0v-3.0H12.0v3.0zm13.5-9.0h-6.0v2.85h6.0c2.56 .0 4.65 2.08 4.65 4.65s-2.08 4.65-4.65 4.65h-6.0V25.5h6.0c4.14 .0 7.5-3.36 7.5-7.5s-3.36-7.5-7.5-7.5z" fill="#fff"></path>
+        </svg>
+        </div>
+        <div class="ytp-menuitem-label">URLを開く</div>
+        <div class="ytp-menuitem-content"></div>
+        </a>
 
         </div>
         </div>}`;
@@ -290,7 +304,7 @@
         setTimeout(() => {
             AllCommentLanes = commentInit();
 
-            setCommentObserve();
+            setCommentObserveInterval();
             setExpireInterval();
             setNicoTubeContextMenu();
             setVideoOn();
@@ -439,12 +453,20 @@
                     attributeFilter: ['display']
                 });
 
+                console.log(matchComment)
+                if (matchComment.url === null){
+                    document.getElementById('openURL').style.display = 'none';
+                } else {
+                    document.getElementById('openURL').style.display = '';
+                    document.getElementById('openURL').href = matchComment.url;
+                }
+
                 e.preventDefault();
 
                 setTimeout(() => {
                     $(nicoTubeContextMenu).css({
                         'top': y, 'left': x, 'display': ''
-                    })
+                    });
                 }, 50);
 
 
@@ -489,6 +511,7 @@
     // comment to text to copy
     const commentToText = (comment) => {
         return comment.parsed.map((com) => {
+            if (com.type === 1) return ':' + com.text + ':'
             return com.text
         }).join('');
     };
@@ -524,8 +547,10 @@
 
     // resize canvas handler
     const mainCanvasResize = () => {
-        commentCanvas.width = player.getBoundingClientRect().width;
-        commentCanvas.height = video.getBoundingClientRect().height;
+        commentCanvas.width = player.getBoundingClientRect().width * config.resolutionRatio;
+        commentCanvas.height = video.getBoundingClientRect().height * config.resolutionRatio;
+        commentCanvas.style.width = player.getBoundingClientRect().width + 'px';
+        commentCanvas.style.height = video.getBoundingClientRect().height + 'px';
         commentCanvas.style.top = video.style.top;
         commentContext.font = `${config.isBold ? 'bold' : ''} ${calcFontSize()}pt '${config.fontFamily}'`;
         commentContext.shadowColor = config.fontColor;
@@ -551,7 +576,7 @@
     const resizeHandler = () => {
         fontSizeCache = 0;
         nicoTubeOn = false;
-        commentObserver.disconnect();
+        globalMutations.comment && globalMutations.comment.disconnect();
         needToRedraw = true;
         mainCanvasResize();
         AllCommentLanes.forEach((commentLane) => {
@@ -567,7 +592,11 @@
                 clearInterval(chatFieldWait);
                 nicoTubeOn = true;
                 setTimeout(() => {
-                    commentObserver.observe(chatField, {attributes: false, childList: true, characterData: false});
+                    globalMutations.comment && globalMutations.comment.observe(chatField, {
+                        attributes: false,
+                        childList: true,
+                        characterData: false
+                    });
                 })
             }
         }, 50)
@@ -580,76 +609,79 @@
 
     commentAddMutation = false;
 
-    const commentObserver = globalMutations.comment || new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-            // wait for moment for image appear
-            setTimeout(() => {
-                if (mutation.addedNodes.length > 0) {
-                    Array.from(mutation.addedNodes).forEach((node) => {
-                        let minLine, minMove = 10e30;
-                        let parsedComment = parseComment(node);
+    const setCommentObserveInterval = () => {
+        setInterval(() => {
+            globalMutations.comment && globalMutations.comment.disconnect();
+            globalMutations.comment = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    // wait for moment for image appear
+                    setTimeout(() => {
+                        if (mutation.addedNodes.length > 0) {
+                            Array.from(mutation.addedNodes).forEach((node) => {
+                                let minLine, minMove = 10e30;
+                                let parsedComment = parseComment(node);
+                                node.remove();
 
-                        if (parsedComment.postTime < currentTick() - config.commentSpeed) {
-                            return; // too old to add
-                        }
+                                if (parsedComment.postTime < currentTick() - config.commentSpeed) {
+                                    return; // too old to add
+                                }
 
-                        if (config.blockedUsers.some((blockedUser) => { // blocked user
-                            return blockedUser[0] == parsedComment.from
-                        }) || config.blockedComments.some((blockedComment) => { // blocked comment
-                            return blockedComment[0] == parsedComment.hash
-                        }) || config.blockedKeyWords.some((blockedKeyWord) => {
-                            return RegExp(blockedKeyWord).test(commentToText(parsedComment))
-                        })) {
-                            return
-                        }
+                                if (config.blockedUsers.some((blockedUser) => { // blocked user
+                                    return blockedUser[0] == parsedComment.from
+                                }) || config.blockedComments.some((blockedComment) => { // blocked comment
+                                    return blockedComment[0] == parsedComment.hash
+                                }) || config.blockedKeyWords.some((blockedKeyWord) => {
+                                    return RegExp(blockedKeyWord).test(commentToText(parsedComment))
+                                })) {
+                                    return
+                                }
 
-                        if (parsedComment.type === 4) {
-                            return // youtube engage
-                        } else if (parsedComment.type === 3) {
-                            config.welcomeNewMember && welcomeNewMember(parsedComment);
-                            return // new member banner
-                        }
+                                if (parsedComment.type === 4) {
+                                    return // youtube engage
+                                } else if (parsedComment.type === 3) {
+                                    config.welcomeNewMember && welcomeNewMember(parsedComment);
+                                    return // new member banner
+                                }
 
-                        let commentSize = calcCommentSize(parsedComment);
-                        let commentWidth = commentSize.width;
-                        let fullMoveWidth = $(commentCanvas).width() + commentWidth;
-                        let commentCanvasRatio = $(commentCanvas).width() / fullMoveWidth;
-                        let startGetOut = currentTick() + commentCanvasRatio * config.commentSpeed;
+                                let commentSize = calcCommentSize(parsedComment);
+                                let commentWidth = commentSize.width;
+                                let fullMoveWidth = $(commentCanvas).width() + commentWidth;
+                                let commentCanvasRatio = $(commentCanvas).width() / fullMoveWidth;
+                                let startGetOut = currentTick() + commentCanvasRatio * config.commentSpeed;
 
-                        // this will solve the problem that new many comments will flow into first lane
-                        let addCommentInterval = setInterval(() => {
-                            if (!commentAddMutation) {
-                                clearInterval(addCommentInterval);
-                                commentAddMutation = true;
-                                AllCommentLanes.some((commentLane) => {
-                                    let lastCommentShowComplete = commentLane.length === 0 || config.commentSpeed / (commentCanvas.width + commentLane[commentLane.length - 1].width) * commentLane[commentLane.length - 1].width + commentLane[commentLane.length - 1].timestamp;
-                                    if (commentLane.length === 0 || (commentLane[commentLane.length - 1].expired < startGetOut && lastCommentShowComplete < currentTick())) {
-                                        parsedComment.laneOffset = 0;
-                                        commentLane.push(commentObj(parsedComment, currentTick(), currentTick() + config.commentSpeed, commentSize));
-                                        return true;
+                                // this will solve the problem that new many comments will flow into first lane
+                                let addCommentInterval = setInterval(() => {
+                                    if (!commentAddMutation) {
+                                        clearInterval(addCommentInterval);
+                                        commentAddMutation = true;
+                                        AllCommentLanes.some((commentLane) => {
+                                            let lastCommentShowComplete = commentLane.length === 0 || config.commentSpeed / (commentCanvas.width + commentLane[commentLane.length - 1].width) * commentLane[commentLane.length - 1].width + commentLane[commentLane.length - 1].timestamp;
+                                            if (commentLane.length === 0 || (commentLane[commentLane.length - 1].expired < startGetOut && lastCommentShowComplete < currentTick())) {
+                                                parsedComment.laneOffset = 0;
+                                                commentLane.push(commentObj(parsedComment, currentTick(), currentTick() + config.commentSpeed, commentSize));
+                                                return true;
+                                            }
+                                            if (minMove > commentLane[commentLane.length - 1].expired) {
+                                                minMove = commentLane[commentLane.length - 1].expired;
+                                                parsedComment.laneOffset = 0.5;
+                                                minLine = commentLane;
+                                            }
+                                        }) || (() => {
+                                            minLine.push(commentObj(parsedComment, currentTick(), currentTick() + config.commentSpeed, commentSize));
+                                            return true
+                                        })();
+                                        commentAddMutation = false;
                                     }
-                                    if (minMove > commentLane[commentLane.length - 1].expired) {
-                                        minMove = commentLane[commentLane.length - 1].expired;
-                                        parsedComment.laneOffset = 0.5;
-                                        minLine = commentLane;
-                                    }
-                                }) || (() => {
-                                    minLine.push(commentObj(parsedComment, currentTick(), currentTick() + config.commentSpeed, commentSize));
-                                    return true
-                                })();
-                                commentAddMutation = false;
-                            }
-                        }, getRandomInt(1, 5))
-                    })
-                }
-            }, 200)
-        });
-    });
+                                }, getRandomInt(1, 5))
+                            })
+                        }
+                    }, 200)
+                });
+            });
+            getChatField() && globalMutations.comment.observe(getChatField(), {attributes: false, childList: true, characterData: false});
 
-    const setCommentObserve = () => {
-        globalMutations.comment = commentObserver;
-        commentObserver.disconnect();
-        commentObserver.observe(chatField, {attributes: false, childList: true, characterData: false});
+            getChatField().style.display = 'none'
+        }, 1000)
     };
 
 
@@ -713,7 +745,7 @@
         });
         if (comment.from === 'self') {
             context.strokeStyle = config.userCommentStrokeColor;
-            context.strokeRect(0, 0, currentX, comment.height);
+            context.strokeRect(0, 0, currentX, comment.height * 1.2);
         }
     };
 
@@ -721,6 +753,7 @@
     // each comment object
     const commentObj = (parsedComment, timestamp, expired, size) => {
         let obj = {
+            url: parsedComment.url,
             laneOffset: parsedComment.laneOffset,
             parsed: parsedComment.parsed,
             id: parsedComment.id,
@@ -828,7 +861,8 @@
             author.text().trim() == `"${userName}"`) {
             obj.from = 'self';
         } else {
-            obj.from = $(comment.querySelector('#img')).attr('src').split('/')[userIdIndexOfImageSrc];
+            let src = $(comment.querySelector('#img')).attr('src');
+            obj.from = src.split('/')[src.split('/').length - 1].split('=')[0];
         }
 
         if (obj.type === 0 || obj.type === 1 || obj.type === 5) {
@@ -843,8 +877,8 @@
             comment = comment.querySelector(messageFieldSelector).innerHTML;
         }
 
-        let imagetagSeparator = /(<img.+?>)/g;
-        let separated = comment.split(imagetagSeparator);
+        let imageTagSeparator = /(<img.+?>)/g;
+        let separated = comment.split(imageTagSeparator);
         separated = separated.filter(n => n);
         separated.forEach((sep) => {
             // type:
@@ -856,6 +890,18 @@
                 obj.parsed.push(stateObj(0, htmlDecode((sep))))
             }
         });
+        let commentText = obj.parsed.map((com) => {
+            if (com.type === 1) return ':' + com.text + ':'
+            return com.text
+        }).join('');
+        const regex = /https?:\/\/[^ 　]+/g;
+        let urls = commentText.match(regex);
+
+        if (urls && urls.length) {
+            obj.url = urls[0]
+        } else {
+            obj.url = null
+        }
         obj.hash = commentToText(obj).hashCode();
         return obj
     };
@@ -926,7 +972,7 @@
     // draw comment
     const drawComment = (comment, x, y) => {
         try {
-            commentContext.drawImage(comment.canvas, x, y + calcFontSize() * (config.commentMargin + 1) * comment.laneOffset);
+            commentContext.drawImage(comment.canvas, x, parseInt(y + calcFontSize() * (config.commentMargin + 1) * comment.laneOffset));
         } catch (e) {
         }
     };
