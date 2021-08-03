@@ -454,7 +454,7 @@
                 });
 
                 console.log(matchComment)
-                if (matchComment.url === null){
+                if (matchComment.url === null) {
                     document.getElementById('openURL').style.display = 'none';
                 } else {
                     document.getElementById('openURL').style.display = '';
@@ -678,7 +678,11 @@
                     }, 200)
                 });
             });
-            getChatField() && globalMutations.comment.observe(getChatField(), {attributes: false, childList: true, characterData: false});
+            getChatField() && globalMutations.comment.observe(getChatField(), {
+                attributes: false,
+                childList: true,
+                characterData: false
+            });
 
             getChatField().style.display = 'none'
         }, 1000)
@@ -704,17 +708,17 @@
             let beforeFillStyle = context.fillStyle;
             let beforeStrokeStyle = context.strokeStyle;
             context.fillStyle = comment.BackGroundColor;
-            config.showSuperChatBackground && context.fillRect(0, 0, wholeX + comment.height * 0.2, comment.height * 1.4);
+            config.showSuperChatBackground && context.fillRect(0, 0, wholeX + comment.height * 0.2, comment.height * 1.5);
             context.strokeStyle = comment.strokeColor;
-            config.showSuperChatStroke && context.strokeRect(0, 0, wholeX + comment.height * 0.2, comment.height * 1.4);
+            config.showSuperChatStroke && context.strokeRect(0, 0, wholeX + comment.height * 0.2, comment.height * 1.5);
             context.fillStyle = beforeFillStyle;
             context.strokeStyle = beforeStrokeStyle;
         }
         comment.parsed.forEach((seps) => {
             switch (seps.type) {
                 case 0:
-                    context.strokeText(seps.text, Math.floor(currentX), comment.height * 0.2);
-                    context.fillText(seps.text, Math.floor(currentX), comment.height * 0.2);
+                    context.strokeText(seps.text, Math.floor(currentX), comment.height * 0.3);
+                    context.fillText(seps.text, Math.floor(currentX), comment.height * 0.3);
                     currentX += seps.width;
                     break;
                 case 1:
@@ -729,7 +733,7 @@
                                     context.save();
                                     context.filter = `drop-shadow(rgb(0,0, 0) 0px 0px 1px) drop-shadow(rgb(0,0, 0) 0px 0px ${calcFontSize() / 200}px)`.repeat(3);
                                 }
-                                context.drawImage(image, Math.floor(image.cX), comment.height * 0.1 / 1.2, seps.width / 1.2, seps.width / 1.2);
+                                context.drawImage(image, Math.floor(image.cX), comment.height * 0.25 / 1.2, seps.width / 1.2, seps.width / 1.2);
                                 if (config.emojiBorder) {
                                     context.restore();
                                 }
@@ -745,7 +749,8 @@
         });
         if (comment.from === 'self') {
             context.strokeStyle = config.userCommentStrokeColor;
-            context.strokeRect(0, 0, currentX, comment.height * 1.2);
+            context.lineWidth = 4;
+            context.strokeRect(context.lineWidth / 2, context.lineWidth / 2, currentX + calcFontSize() * 0.2, comment.height * 1.5);
         }
     };
 
@@ -854,15 +859,12 @@
         }
         obj.author = author.text().trim();
 
-        let userName = !getInputField() || !getInputField().querySelector('#author-name') || $(getInputField().querySelector('#author-name')).text().trim();
-        userName = userName === true ? '' : userName;
-
-        if (author.text().trim() == userName ||
-            author.text().trim() == `"${userName}"`) {
+        let src = $(comment.querySelector('#img')).attr('src');
+        let from = src.split('/')[src.split('/').length - 1].split('=')[0];
+        if ('yH5BAEAAAAALAAAAAABAAEAAAIBRAA7' === from) {  // place holder. by YouTube
             obj.from = 'self';
         } else {
-            let src = $(comment.querySelector('#img')).attr('src');
-            obj.from = src.split('/')[src.split('/').length - 1].split('=')[0];
+            obj.from = from;
         }
 
         if (obj.type === 0 || obj.type === 1 || obj.type === 5) {
