@@ -10,7 +10,10 @@
 // @require         https://code.jquery.com/jquery-3.3.1.min.js
 // @grant           GM_setValue
 // @grant           GM_getValue
+// @grant           GM_getResourceText
+// @grant           GM_addStyle
 // @grant           GM_setClipboard
+// @resource        IMPORTED_CSS http://cdn.abc.com/jquery-ui.min.css
 // @noframes
 /* globals jQuery, $ */
 // ==/UserScript==
@@ -20,6 +23,9 @@
 
 (function () {
     'use strict';
+
+    const my_css = GM_getResourceText("IMPORTED_CSS");
+    GM_addStyle(my_css);
 
     const getVars = () => {
         return {
@@ -344,7 +350,7 @@
     // on off switch
     const setNicoTubeSwitch = () => {
         nicoTubeSwitch.onclick = () => {
-            let currentSwitch = $(nicoTubeSwitch).attr('show') == 'true';
+            let currentSwitch = $(nicoTubeSwitch).attr('show') === 'true';
             $(nicoTubeSwitch).attr('show', !currentSwitch);
             $('#nicoTubepath1').css('visibility', (currentSwitch ? 'hidden' : 'visible'));
             $('#nicoTubepath2').css('visibility', (!currentSwitch ? 'hidden' : 'visible'));
