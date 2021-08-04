@@ -1,3 +1,8 @@
-#send-button.yt-live-chat-message-input-renderer > *.yt-live-chat-message-input-renderer {
+#button.yt-button-renderer {
     color: white;
 }
+
+#send-button.yt-live-chat-message-input-renderer > .yt-live-chat-message-input-renderer[disabled] {
+    color: rgb(160 160 160);
+}
+
