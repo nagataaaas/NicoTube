@@ -10,3 +10,32 @@
     color: rgb(120 120 120);
 }
 
+#top > * #author-name {
+    color: #ffffff !important;
+    width: 5em;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+#top > * #avatar {
+    margin: auto 0.5em auto auto;
+}
+
+#input-panel > yt-live-chat-message-input-renderer > #container {
+    display: flex;
+    justify-content: space-between;
+}
+
+#input-panel > yt-live-chat-message-input-renderer > #container > * #input {
+    width: 60%;
+    color: white !important;
+}
+
+#input-panel > yt-live-chat-message-input-renderer > #container > * #input > label {
+    color: white;
+}
+
+#message-buttons > * #count {
+    color: #ffffff !important;
+}
