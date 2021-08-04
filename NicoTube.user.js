@@ -13,7 +13,7 @@
 // @grant           GM_getResourceText
 // @grant           GM_addStyle
 // @grant           GM_setClipboard
-// @resource        IMPORTED_CSS http://cdn.abc.com/jquery-ui.min.css
+// @resource        IMPORTED_CSS https://raw.githubusercontent.com/nagataaaas/NicoTube/master/style.css
 // @noframes
 /* globals jQuery, $ */
 // ==/UserScript==
