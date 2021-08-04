@@ -3,10 +3,10 @@
 }
 
 #send-button.yt-live-chat-message-input-renderer > .yt-live-chat-message-input-renderer[disabled] {
-    color: rgb(160 160 160);
+    color: rgb(120 120 120);
 }
 
-#send-button.yt-live-chat-message-input-renderer > .yt-live-chat-message-input-renderer[disabled]::hover {
-    color: rgb(160 160 160);
+#send-button.yt-live-chat-message-input-renderer > .yt-live-chat-message-input-renderer[disabled]:hover {
+    color: rgb(120 120 120);
 }
 
